@@ -27,7 +27,7 @@ export function createPlayer(parent,{url=new URL('./models/pitcher-pro.glb',impo
  // ball with raised red seams
  const ball=new T.Mesh(new T.SphereGeometry(.037,24,16),mat(0xf4efe3,.6));ball.castShadow=true;group.add(ball);
  for(let side=0;side<2;side++){const pts=[];for(let i=0;i<=96;i++){const a=i/96*Math.PI*2,theta=.95+.27*Math.cos(2*a),phi=a+side*Math.PI;pts.push(new T.Vector3(.0372*Math.sin(theta)*Math.cos(phi),.0372*Math.cos(theta)*(side?1:-1),.0372*Math.sin(theta)*Math.sin(phi)));}ball.add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts,true),96,.0011,4,true),mat(0xd8513a,.65)));}
- const glove=makePitcherGlove();glove.visible=false;group.add(glove);
+ const glove=makePitcherGlove();glove.visible=false;glove.scale.set(1.3,1.25,1.5);group.add(glove);
 
  const world=o=>o.getWorldPosition(v3());
  const worldQ=o=>o.getWorldQuaternion(q4());
@@ -111,9 +111,11 @@ export function createPlayer(parent,{url=new URL('./models/pitcher-pro.glb',impo
   if(!p.released){for(const [digit,offset] of [['index',.012],['middle',-.010]]){const c=gripPoint.clone().addScaledVector(hx,offset),target=c.clone().addScaledVector(hy.clone().multiplyScalar(.62).addScaledVector(hz,-.78).normalize(),R+.007);solveLimb(bones[digit+'1_r'],bones[digit+'2_r'],bones[digit+'3_r'],target,c.clone().addScaledVector(hz,-.12));curl(bones[digit+'3_r'],.55,'r');}
    solveLimb(bones.thumb1_r,bones.thumb2_r,bones.thumb3_r,gripPoint.clone().addScaledVector(hz.clone().multiplyScalar(.85).addScaledVector(hy,-.3).addScaledVector(hx,.25).normalize(),R+.006),gripPoint.clone().addScaledVector(hx,.12).addScaledVector(hy,-.04));}
   rig.updateMatrixWorld(true);
-  const l=handAxes('l');glove.visible=true;glove.position.copy(world(bones.hand_l)).addScaledVector(l.palm,.012).addScaledVector(l.y,.02);
-  glove.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(l.across.clone().negate(),l.y,v3().crossVectors(l.across.clone().negate(),l.y)));
-  ball.position.copy(gripPoint);
+  // glove and ball are children of the group, so world placements are converted into its space
+  const l=handAxes('l');glove.visible=true;group.updateMatrixWorld(true);const groupQ=worldQ(group).invert();
+  glove.position.copy(group.worldToLocal(world(bones.hand_l).addScaledVector(l.palm,-.012).addScaledVector(l.y,-.035)));
+  glove.quaternion.copy(groupQ.clone().multiply(q4().setFromRotationMatrix(new T.Matrix4().makeBasis(l.across.clone().negate(),l.y,v3().crossVectors(l.across.clone().negate(),l.y)))));
+  ball.position.copy(group.worldToLocal(gripPoint.clone()));
  }
  function motionScale(frame){const d=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);const source=['l','r'].reduce((s,k)=>s+d(frame[k+'hip'],frame[k+'k'])+d(frame[k+'k'],frame[k+'f']),0)/2;const leg=rig?world(bones.thigh_l).distanceTo(world(bones.calf_l))+world(bones.calf_l).distanceTo(world(bones.foot_l)):.82;return leg/source;}
 
