@@ -1,5 +1,5 @@
 import * as T from './vendor/three.module.min.js';
-import {createPitcherModel} from './chibi-pitcher.js';
+import {createPitcherModel} from './pro-pitcher.js';
 
 const captions=['右腳站穩，左膝抬起，準備向前。','左腳跨出去，髖和肩膀接著轉。','手肘帶著手往前，球正在加速。','球離開手指，手臂和後腳自然收尾。'];
 let active=null;
@@ -7,7 +7,7 @@ const capture=fetch(new URL('./models/pitching-motion.json',import.meta.url)).th
 capture.catch(()=>{});
 function cleanup(){if(!active)return;cancelAnimationFrame(active.raf);active.model?.dispose();active.ro?.disconnect();active.io?.disconnect();active.controls?.remove();active.scene?.traverse(o=>{o.geometry?.dispose();if(o.material)for(const m of [].concat(o.material)){m.map?.dispose();m.dispose();}});active.renderer?.dispose();active.renderer?.forceContextLoss();active=null;}
 function mount(canvas,step,from=step){
- cleanup();const root={canvas,step,from,started:performance.now(),auto:false,visible:true,raf:0,angle:-.72,radius:2.9,time:0,rate:.5};active=root;
+ cleanup();const root={canvas,step,from,started:performance.now(),auto:false,visible:true,raf:0,angle:-.72,radius:3.3,time:0,rate:.5};active=root;
  try{
  const renderer=root.renderer=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'low-power'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15;renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;
  const scene=root.scene=new T.Scene();scene.background=new T.Color(0x173d35);scene.fog=new T.Fog(0x173d35,7,14);const camera=new T.PerspectiveCamera(37,1,.05,30);
@@ -23,7 +23,7 @@ function mount(canvas,step,from=step){
  const trail=new T.Line(new T.BufferGeometry(),new T.LineDashedMaterial({color:0xf2dba0,dashSize:.07,gapSize:.055,transparent:true,opacity:.7}));scene.add(trail);trail.visible=false;
  const controls=root.controls=document.createElement('div');controls.className='pitcher3d-controls';controls.innerHTML=`<div role="group" aria-label="立體投手視角"><button type="button" data-pitcher-view="side" aria-pressed="true">側前方</button><button type="button" data-pitcher-view="front" aria-pressed="false">正面</button><button type="button" data-pitcher-view="back" aria-pressed="false">背面</button><button type="button" data-pitcher-zoom="in" aria-label="拉近看投手">＋</button><button type="button" data-pitcher-zoom="out" aria-label="拉遠看投手">−</button></div><div class="pitcher-motion-bar"><button type="button" data-pitcher-play disabled>載入中…</button><button type="button" data-pitcher-speed aria-pressed="true">慢看 ½×</button><label>拖曳看動作<input type="range" min="0" max="1000" value="0" data-pitcher-scrub aria-label="投球動作時間軸"></label></div><p class="pitcher3d-caption" role="status">正在準備立體投手…</p><details class="pitcher-motion-source"><summary>動作資料來源</summary><p>CMU 動作捕捉資料庫 124–01 真人投球紀錄，對應到教學人物骨架。用來觀察全身配合，並非標準姿勢評分。人物以 MakeHuman（CC0）人體為底，球衣、帽子、球鞋與手套為本站自製模型。<a href="https://mocap.cs.cmu.edu/subjects/124/" target="_blank" rel="noopener">查看原始資料</a></p></details>`;canvas.closest('.stage').after(controls);
  const play=controls.querySelector('[data-pitcher-play]'),scrub=controls.querySelector('[data-pitcher-scrub]'),caption=controls.querySelector('.pitcher3d-caption');
- function cameraAt(){camera.position.set(Math.sin(root.angle)*root.radius,1.35,.72+Math.cos(root.angle)*root.radius);camera.lookAt(.03,.80,.72);}
+ function cameraAt(){camera.position.set(Math.sin(root.angle)*root.radius,1.45,.72+Math.cos(root.angle)*root.radius);camera.lookAt(.03,.88,.72);}
  controls.querySelectorAll('[data-pitcher-view]').forEach(b=>b.onclick=()=>{root.angle={side:-.72,front:0,back:Math.PI}[b.dataset.pitcherView];controls.querySelectorAll('[data-pitcher-view]').forEach(a=>a.setAttribute('aria-pressed',String(a===b)));cameraAt();});
  controls.querySelectorAll('[data-pitcher-zoom]').forEach(b=>b.onclick=()=>{root.radius=T.MathUtils.clamp(root.radius+(b.dataset.pitcherZoom==='in'?-.3:.3),2.7,5.5);cameraAt();});
  play.onclick=()=>{if(!root.motion)return;root.auto=!root.auto;root.transition=false;if(root.auto){if(!root.hasPlayed||root.time>=root.motion.duration-.04)root.time=0;root.hasPlayed=true;root.last=performance.now();}play.textContent=root.auto?'Ⅱ 暫停':'▶ 看完整動作';};

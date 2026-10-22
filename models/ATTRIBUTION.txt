@@ -1,12 +1,16 @@
-3D pitcher (dist/chibi-pitcher.js)
-- Built entirely in code with Three.js primitives: a chibi-style cartoon athlete (big round head,
-  compact body, round joints, mitten hands) with cel shading and ink outlines. No downloaded model.
-- Pitcher's glove, catcher's mitt, ball and field props: dist/scene-models.js, also built in code.
+3D pitcher (dist/models/pitcher-pro.glb, runtime dist/pro-pitcher.js)
+- Character: "Michelle" by Mixamo (Adobe), taken from the three.js examples
+  (https://github.com/mrdoob/three.js/blob/dev/examples/models/gltf/Michelle.glb). Mixamo characters may be
+  used royalty-free in your own projects under the Adobe Mixamo terms; the character itself is not redistributed
+  as a standalone asset.
+- Local work (tools/pro/): headphones, sunglasses and hair puffs removed; diffuse map repainted into a baseball
+  uniform (jersey, collar, belt, pants, socks, cleats) while keeping the original shading; cap, bill, badge and
+  jersey numbers modelled in code; pitcher's glove from dist/scene-models.js.
+- Rig: the Mixamo skeleton (65 bones). Pitching motion retargeted in world space with two-joint IK, ground
+  contact for planted feet, forearm twist sharing and a four-seam ball grip.
 
 Three.js r180, GLTFLoader and BufferGeometryUtils: https://github.com/mrdoob/three.js/tree/r180 (MIT, see vendor/THREE-LICENSE.txt).
-
 Pitching animation: CMU Graphics Lab Motion Capture Database, subject 124, motion 01. See PITCHING-MOTION-ATTRIBUTION.txt.
-Retargeting: capture scaled to the cartoon's leg length, two-joint IK, ground contact for planted feet, forearm twist sharing.
 
-Earlier realistic model (no longer shipped): tools/build-pitcher.mjs builds a MakeHuman/MPFB2 (CC0) athlete;
-tools/legacy/skinned-pitcher.js is its runtime. MAKEHUMAN-MPFB2-CC0-LICENSE.txt is kept for that tool.
+Earlier characters kept for reference only: dist/chibi-pitcher.js (code-built cartoon), tools/build-pitcher.mjs +
+tools/legacy/skinned-pitcher.js (MakeHuman/MPFB2 CC0 athlete, license in MAKEHUMAN-MPFB2-CC0-LICENSE.txt).

@@ -2,7 +2,7 @@ import * as THREE from './vendor/three.module.min.js';
 import {makeCatcherMitt,createAirflow,createAimGuide,addDistanceMarks} from './scene-models.js';
 
 import {pitchSpins,spinAxis,pitchDefaults,pitchFlightOptions} from './pitch-spins.js';
-import {createPitcherModel} from './chibi-pitcher.js';
+import {createPitcherModel} from './pro-pitcher.js';
 const F=window.BaseballFlight3D;
 const lab=document.createElement('section');lab.id='playground';lab.className='playground';lab.setAttribute('aria-label','3D 棒球遊樂場');
 lab.innerHTML=`<div class="play-intro"><div><div class="play-eyebrow">THE BALL IS IN YOUR HANDS · 3D PLAY LAB</div><h1>這次，把球<em>玩真的。</em></h1><p>一顆有皮革、有縫線的立體棒球。轉轉看，再投進手套。</p></div><div class="play-intro-actions"><a class="play-old" href="#pitcher">看 3D 投手 ↘</a><a class="play-old" href="#chapter-nav">去故事實驗室 ↘</a></div></div>
