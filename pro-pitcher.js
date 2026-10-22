@@ -11,7 +11,7 @@ for(const [s,S] of [['l','Left'],['r','Right']]){Object.assign(B,{['upperarm_'+s
 const NAVY=0x1d3552,RED=0xd8513a;
 
 export function createPitcherModel(scene){
- const group=new T.Group();scene.add(group);let rig,bones={},rest=[],lastPose,disposed=false,anatomy={},gripPoint,curl={},sole={};
+ const group=new T.Group();scene.add(group);let rig,bones={},rest=[],lastPose,disposed=false,anatomy={},gripPoint,curl={},sole={},fit=null;
  const std=(color,roughness=.8,extra={})=>new T.MeshStandardMaterial({color,roughness,...extra});
  const white=std(0xf4efe3,.6),red=std(RED,.65),navy=std(NAVY,.85);
  const ball=new T.Mesh(new T.SphereGeometry(.037,24,16),white);group.add(ball);ball.castShadow=true;
@@ -39,6 +39,12 @@ export function createPitcherModel(scene){
    if(weight(i,/Head$/)>.6&&y>1.40){top=Math.max(top,y);front=Math.max(front,z);back=Math.min(back,z);hx=Math.max(hx,Math.abs(x));}
    if(Math.abs(x)<.06&&y>1.17&&y<1.25){chestF=Math.max(chestF,z);chestB=Math.min(chestB,z);}
   }
+  if(fit?.hasCap){
+   const badge=decal(logoTexture(),fit.capLogo.size*.8,fit.capLogo.size*.8);badge.position.set(...fit.capLogo.center);badge.position.z+=.004;badge.rotation.x=-.25;group.add(badge);attachWorld(bones.head,badge);
+   const number=numberTexture();const frontNo=decal(number,.09,.09);frontNo.position.set(...fit.chestFront);frontNo.position.z+=.006;frontNo.rotation.y=-.25;group.add(frontNo);attachWorld(bones.spine_03,frontNo);
+   const backNo=decal(number,.20,.20);backNo.position.set(...fit.chestBack);backNo.position.z-=.006;backNo.rotation.y=Math.PI;group.add(backNo);attachWorld(bones.spine_03,backNo);
+   soleSamples(body,used,weight);return;
+  }
   const headC=new T.Vector3(0,top-.062,(front+back)/2+.004),rx=hx+.010,ry=top-headC.y+.034,rz=(front-back)/2+.012;
   const cap=new T.Group();
   const crown=new T.SphereGeometry(1,48,26,0,Math.PI*2,0,Math.PI*.52),cp=crown.attributes.position;for(let i=0;i<cp.count;i++){cp.setXYZ(i,cp.getX(i)*rx,cp.getY(i)*ry,cp.getZ(i)*rz);}crown.computeVertexNormals();
@@ -57,9 +63,10 @@ export function createPitcherModel(scene){
   // numbers on the chest and back
   const number=numberTexture();const frontNo=decal(number,.085,.085);frontNo.position.set(-.055,1.215,chestF+.012);frontNo.rotation.y=-.35;group.add(frontNo);attachWorld(bones.spine_03,frontNo);
   const backNo=decal(number,.19,.19);backNo.position.set(0,1.19,chestB-.012);backNo.rotation.y=Math.PI;group.add(backNo);attachWorld(bones.spine_03,backNo);
-  // sole: the lowest vertices of each shoe, measured through the skin each time
-  skin=body;for(const s of ['l','r']){const re=s==='l'?/LeftFoot|LeftToe/:/RightFoot|RightToe/;const list=[];for(let i=0;i<pos.count;i++)if(used[i]&&pos.getY(i)<.012&&weight(i,re)>.5)list.push(i);sole[s]=list.filter((_,k)=>k%4===0);}
+  soleSamples(body,used,weight);
  }
+ // sole: the lowest vertices of each shoe, measured through the skin each time
+ function soleSamples(body,used,weight){const pos=body.geometry.attributes.position;skin=body;for(const s of ['l','r']){const re=s==='l'?/LeftFoot|LeftToe/:/RightFoot|RightToe/;const list=[];for(let i=0;i<pos.count;i++)if(used[i]&&pos.getY(i)<.012&&weight(i,re)>.5)list.push(i);sole[s]=list.filter((_,k)=>k%4===0);}}
  let skin=null;const tmpV=new T.Vector3();
  function soleLow(s){rig.updateMatrixWorld(true);skin.skeleton.update();let y=Infinity;const pos=skin.geometry.attributes.position;for(const i of sole[s]){tmpV.fromBufferAttribute(pos,i);skin.applyBoneTransform(i,tmpV);tmpV.applyMatrix4(skin.matrixWorld);y=Math.min(y,tmpV.y);}return y;}
  function aim(bone,child,target){rig.updateMatrixWorld(true);const a=world(bone),from=world(child).sub(a).normalize(),to=target.clone().sub(a).normalize();const delta=new T.Quaternion().setFromUnitVectors(from,to),q=bone.getWorldQuaternion(new T.Quaternion()).premultiply(delta),parent=bone.parent.getWorldQuaternion(new T.Quaternion()).invert();bone.quaternion.copy(parent.multiply(q));}
@@ -138,8 +145,8 @@ export function createPitcherModel(scene){
  function motionScale(f){const d=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);const source=['l','r'].reduce((s,k)=>s+d(f[k+'hip'],f[k+'k'])+d(f[k+'k'],f[k+'f']),0)/2;const leg=rig?world(bones.thigh_l).distanceTo(world(bones.calf_l))+world(bones.calf_l).distanceTo(world(bones.foot_l)):.82;return leg/source;}
  const ready=new GLTFLoader().loadAsync(new URL('./models/pitcher-pro.glb',import.meta.url).href).then(g=>{
   if(disposed){g.scene.traverse(o=>o.geometry?.dispose());return;}
-  rig=g.scene;group.add(rig);let body;
-  rig.traverse(o=>{if(o.isBone){const plain=o.name.replace(/^mixamorig:?/,'');const key=Object.keys(B).find(k=>B[k]===plain);if(key)bones[key]=o;rest.push({b:o,q:o.quaternion.clone(),p:o.position.clone()});}if(o.isSkinnedMesh){body=o;o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;o.material.metalness=0;o.material.roughness=1;o.material.envMapIntensity=.6;}});
+  rig=g.scene;fit=g.scene.userData?.fit||null;group.add(rig);let body;
+  rig.traverse(o=>{if(o.isBone){const plain=o.name.replace(/^mixamorig:?/,'');const key=Object.keys(B).find(k=>B[k]===plain);if(key)bones[key]=o;rest.push({b:o,q:o.quaternion.clone(),p:o.position.clone()});}if(o.isSkinnedMesh){body=o;o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;o.material.metalness=0;o.material.roughness=fit?.hasCap?.85:1;o.material.envMapIntensity=.6;o.material.side=fit?.hasCap?T.DoubleSide:T.FrontSide;}});
   captureAnatomy();dress(body);if(lastPose)poseMotion(lastPose);
  });
  return {group,ball,ready,pose:poseMotion,poseMotion,motionScale,soleLow:s=>rig?soleLow(s):0,handPosition(){if(!rig)return lastPose?.rh.clone()||new T.Vector3();rig.updateMatrixWorld(true);return gripPoint?.clone()||world(bones.hand_r);},dispose(){disposed=true;}};
