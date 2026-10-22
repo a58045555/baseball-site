@@ -1,7 +1,7 @@
 import * as T from './vendor/three.module.min.js';
 import {createBallpark} from './ballpark.js';
 import {createPlayer,sampleMotion,fitMotion} from './player.js';
-import {makeCatcherMitt} from './scene-models.js';
+import {createCatcher,createGlove,makeCatcherMitt} from './props.js';
 
 // Chapter 4, "body" mode: the pitcher on the mound of the ballpark, driven by the captured motion,
 // with broadcast camera presets, a scrubbable timeline and a real ball flight to the catcher.
@@ -11,7 +11,7 @@ const VIEWS=[['close','近看'],['side','一壘側'],['front','本壘後'],['bro
 let active=null;
 const capture=fetch(new URL('./models/pitching-motion.json',import.meta.url)).then(r=>{if(!r.ok)throw Error('投球動作資料載入失敗');return r.json();});capture.catch(()=>{});
 
-function cleanup(){if(!active)return;const a=active;active=null;cancelAnimationFrame(a.raf);a.player?.dispose();a.park?.dispose();a.ro?.disconnect();a.io?.disconnect();a.controls?.remove();a.scene?.traverse(o=>{o.geometry?.dispose();if(o.material)for(const m of [].concat(o.material)){m.map?.dispose();m.dispose();}});a.renderer?.dispose();a.renderer?.forceContextLoss();}
+function cleanup(){if(!active)return;const a=active;active=null;cancelAnimationFrame(a.raf);a.player?.dispose();a.catcher&&a.scene?.remove(a.catcher);a.park?.dispose();a.ro?.disconnect();a.io?.disconnect();a.controls?.remove();a.scene?.traverse(o=>{o.geometry?.dispose();if(o.material)for(const m of [].concat(o.material)){m.map?.dispose();m.dispose();}});a.renderer?.dispose();a.renderer?.forceContextLoss();}
 
 function mount(canvas,step,from=step){
  cleanup();const root={canvas,step,from,started:performance.now(),auto:false,visible:true,raf:0,view:'close',angle:-.75,radius:3.9,time:0,rate:.5};active=root;
@@ -20,8 +20,9 @@ function mount(canvas,step,from=step){
  const renderer=root.renderer=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,small?1.5:2));renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;
  const scene=root.scene=new T.Scene();const camera=new T.PerspectiveCamera(30,1,.05,600);
  const park=root.park=createBallpark(scene,renderer,{rubberZ:0,quality:small?'low':'high'});
- const player=root.player=createPlayer(scene);player.group.position.y=park.moundTop;
- const mitt=makeCatcherMitt();mitt.rotation.y=Math.PI;mitt.position.set(.05,.72,park.plateZ-.55);scene.add(mitt);
+ const player=root.player=createPlayer(scene,{glove:createGlove()});player.group.position.y=park.moundTop;
+ const mitt=makeCatcherMitt();mitt.position.set(.05,.72,park.plateZ+.07);scene.add(mitt);
+ createCatcher().then(c=>{if(active!==root)return;root.catcher=c;c.position.set(.03,0,park.plateZ+.8);if(c.userData.reach)c.userData.reach(c.worldToLocal(mitt.position.clone().add(new T.Vector3(0,-.1,.11))));scene.add(c);});
  const highlight=new T.Mesh(new T.TorusGeometry(.15,.006,8,48),new T.MeshBasicMaterial({color:0xf1c970,transparent:true,opacity:.7,depthTest:false}));scene.add(highlight);
  const trail=new T.Line(new T.BufferGeometry(),new T.LineDashedMaterial({color:0xfff1c2,dashSize:.12,gapSize:.08,transparent:true,opacity:.75}));scene.add(trail);trail.visible=false;
  const ball=player.ball;

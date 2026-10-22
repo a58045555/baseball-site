@@ -19,7 +19,7 @@ function basis(x,y){y=y.clone().normalize();const z=v3().crossVectors(x,y).norma
 function footBasis(dir){const d=dir.clone().normalize(),x=v3().crossVectors(UP,d).normalize(),y=v3().crossVectors(d,x).normalize();return basis(x,y);}
 function canvasTexture(size,draw){const c=document.createElement('canvas');c.width=c.height=size;draw(c.getContext('2d'),size);const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;t.anisotropy=4;return t;}
 
-export function createPlayer(parent,{url=new URL('./models/pitcher-pro.glb',import.meta.url).href,number='17',badge='B'}={}){
+export function createPlayer(parent,{url=new URL('./models/pitcher-pro.glb',import.meta.url).href,number='17',badge='B',glove:gloveSource=null}={}){
  const group=new T.Group();group.name='player';parent.add(group);
  const bones={},rest=[];let rig=null,skin=null,fit=null,anatomy={},sole={},gripPoint=null,lastPose=null,disposed=false;
  const materials=[];
@@ -27,7 +27,8 @@ export function createPlayer(parent,{url=new URL('./models/pitcher-pro.glb',impo
  // ball with raised red seams
  const ball=new T.Mesh(new T.SphereGeometry(.037,24,16),mat(0xf4efe3,.6));ball.castShadow=true;group.add(ball);
  for(let side=0;side<2;side++){const pts=[];for(let i=0;i<=96;i++){const a=i/96*Math.PI*2,theta=.95+.27*Math.cos(2*a),phi=a+side*Math.PI;pts.push(new T.Vector3(.0372*Math.sin(theta)*Math.cos(phi),.0372*Math.cos(theta)*(side?1:-1),.0372*Math.sin(theta)*Math.sin(phi)));}ball.add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts,true),96,.0011,4,true),mat(0xd8513a,.65)));}
- const glove=makePitcherGlove();glove.visible=false;glove.scale.set(1.3,1.25,1.5);group.add(glove);
+ // the glove may come from props.js (a modelled GLB) or the procedural one; either way it hangs on the left hand
+ let glove=null;Promise.resolve(gloveSource).then(g=>{if(!g){g=makePitcherGlove();g.scale.set(1.3,1.25,1.5);}if(disposed)return;glove=g;glove.visible=false;group.add(glove);if(lastPose&&rig)poseMotion(lastPose);}).catch(()=>{});
 
  const world=o=>o.getWorldPosition(v3());
  const worldQ=o=>o.getWorldQuaternion(q4());
@@ -112,9 +113,9 @@ export function createPlayer(parent,{url=new URL('./models/pitcher-pro.glb',impo
    solveLimb(bones.thumb1_r,bones.thumb2_r,bones.thumb3_r,gripPoint.clone().addScaledVector(hz.clone().multiplyScalar(.85).addScaledVector(hy,-.3).addScaledVector(hx,.25).normalize(),R+.006),gripPoint.clone().addScaledVector(hx,.12).addScaledVector(hy,-.04));}
   rig.updateMatrixWorld(true);
   // glove and ball are children of the group, so world placements are converted into its space
-  const l=handAxes('l');glove.visible=true;group.updateMatrixWorld(true);const groupQ=worldQ(group).invert();
+  if(glove){const l=handAxes('l');glove.visible=true;group.updateMatrixWorld(true);const groupQ=worldQ(group).invert();
   glove.position.copy(group.worldToLocal(world(bones.hand_l).addScaledVector(l.palm,-.012).addScaledVector(l.y,-.035)));
-  glove.quaternion.copy(groupQ.clone().multiply(q4().setFromRotationMatrix(new T.Matrix4().makeBasis(l.across.clone().negate(),l.y,v3().crossVectors(l.across.clone().negate(),l.y)))));
+  glove.quaternion.copy(groupQ.clone().multiply(q4().setFromRotationMatrix(new T.Matrix4().makeBasis(l.across.clone().negate(),l.y,v3().crossVectors(l.across.clone().negate(),l.y)))));}
   ball.position.copy(group.worldToLocal(gripPoint.clone()));
  }
  function motionScale(frame){const d=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);const source=['l','r'].reduce((s,k)=>s+d(frame[k+'hip'],frame[k+'k'])+d(frame[k+'k'],frame[k+'f']),0)/2;const leg=rig?world(bones.thigh_l).distanceTo(world(bones.calf_l))+world(bones.calf_l).distanceTo(world(bones.foot_l)):.82;return leg/source;}
@@ -126,7 +127,7 @@ export function createPlayer(parent,{url=new URL('./models/pitcher-pro.glb',impo
   for(const k of Object.keys(BONE))if(!bones[k])throw Error('模型缺少骨頭 '+BONE[k]);
   captureAnatomy();sampleSoles(skin);dress();if(lastPose)poseMotion(lastPose);});
  ready.catch(()=>{});
- return {group,ball,glove,ready,poseMotion,pose:poseMotion,motionScale,bones,
+ return {group,ball,get glove(){return glove;},ready,poseMotion,pose:poseMotion,motionScale,bones,
   soleLow:s=>rig?soleLow(s):0,
   handPosition(){if(!rig)return lastPose?.rh?.clone()||v3();rig.updateMatrixWorld(true);return gripPoint?.clone()||world(bones.hand_r);},
   joint(name){return rig&&bones[name]?world(bones[name]):null;},
