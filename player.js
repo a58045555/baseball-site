@@ -48,7 +48,7 @@ export function createPlayer(parent,{url=new URL('./models/pitcher-pro.glb',impo
   for(const s of ['l','r']){const re=s==='l'?/LeftFoot|LeftToe/:/RightFoot|RightToe/;const list=[];for(let i=0;i<pos.count;i++)if(pos.getY(i)<.012&&weight(i,re)>.5)list.push(i);sole[s]=list.filter((_,k)=>k%4===0);}}
 
  // uniform marks: cap badge, chest and back numbers, fitted where the rig data says the cloth is
- function decal(map,size){const m=new T.Mesh(new T.PlaneGeometry(size,size),mat(0xffffff,.85,{map,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,side:T.DoubleSide}));return m;}
+ function decal(map,size){const m=new T.Mesh(new T.PlaneGeometry(size,size),mat(0xffffff,.85,{map,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-2,side:T.FrontSide}));return m;}
  function numberTexture(){return canvasTexture(512,(x,s)=>{x.textAlign='center';x.textBaseline='middle';x.font='900 300px "Arial Black",Impact,sans-serif';x.lineJoin='round';x.lineWidth=34;x.strokeStyle='#d8513a';x.strokeText(number,s/2,s/2+14);x.fillStyle='#1d3552';x.fillText(number,s/2,s/2+14);});}
  function badgeTexture(){return canvasTexture(512,(x,s)=>{x.textAlign='center';x.textBaseline='middle';x.font='900 420px Georgia,serif';x.lineJoin='round';x.lineWidth=46;x.strokeStyle='#d8513a';x.strokeText(badge,s/2,s/2+24);x.fillStyle='#f4ead2';x.fillText(badge,s/2,s/2+24);});}
  function attachWorld(bone,object){group.add(object);rig.updateMatrixWorld(true);bone.attach(object);}
@@ -120,8 +120,10 @@ export function createPlayer(parent,{url=new URL('./models/pitcher-pro.glb',impo
  }
  function motionScale(frame){const d=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);const source=['l','r'].reduce((s,k)=>s+d(frame[k+'hip'],frame[k+'k'])+d(frame[k+'k'],frame[k+'f']),0)/2;const leg=rig?world(bones.thigh_l).distanceTo(world(bones.calf_l))+world(bones.calf_l).distanceTo(world(bones.foot_l)):.82;return leg/source;}
 
- const ready=new GLTFLoader().loadAsync(url).then(g=>{if(disposed){g.scene.traverse(o=>o.geometry?.dispose());return;}
-  rig=g.scene;fit=g.scene.userData?.fit||null;group.add(rig);
+ // where the badge and numbers go: in the GLB's extras (tools/meshy builds) or a sidecar .fit.json (Meshy-rigged exports)
+ const fitFile=fetch(url.replace(/\.glb$/,'.fit.json')).then(r=>r.ok?r.json():null).catch(()=>null);
+ const ready=Promise.all([new GLTFLoader().loadAsync(url),fitFile]).then(([g,sidecar])=>{if(disposed){g.scene.traverse(o=>o.geometry?.dispose());return;}
+  rig=g.scene;fit=g.scene.userData?.fit||sidecar||null;group.add(rig);
   rig.traverse(o=>{if(o.isBone){const plain=o.name.replace(/^mixamorig:?/,'');const key=Object.keys(BONE).find(k=>BONE[k]===plain);if(key)bones[key]=o;rest.push({b:o,q:o.quaternion.clone(),p:o.position.clone()});}
    if(o.isSkinnedMesh){skin=o;o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;Object.assign(o.material,{metalness:0,roughness:.86,envMapIntensity:.45,side:T.DoubleSide});}});
   for(const k of Object.keys(BONE))if(!bones[k])throw Error('模型缺少骨頭 '+BONE[k]);
