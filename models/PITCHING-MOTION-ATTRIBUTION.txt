@@ -1,0 +1,26 @@
+Pitching motion: CMU Graphics Lab Motion Capture Database
+Subject 124, motion 01: Baseball Pitch, captured at 120 Hz.
+https://mocap.cs.cmu.edu/
+https://mocap.cs.cmu.edu/search.php?subjectnumber=124
+
+The data used in this project was obtained from mocap.cs.cmu.edu.
+Collection supported by NSF Grant 0196217.
+
+Official use terms, verified 21 October 2026:
+The CMU home page states that the dataset is free for all uses.
+The FAQ permits copying, modification, and redistribution without permission.
+https://mocap.cs.cmu.edu/faqs.php
+
+BVH conversion distributed by Shriinivas/cmubvh:
+https://github.com/Shriinivas/cmubvh/tree/main/Sequence-113-128/124
+https://raw.githubusercontent.com/Shriinivas/cmubvh/main/Sequence-113-128/124/Data/124_01.zip
+
+Local changes: parsed BVH using forward kinematics, discarded the initial
+reference pose, trimmed the captured action to source seconds 2.0 through 4.35,
+sampled at 60 Hz, normalized the standing reference height to 1.8 metres,
+rotated the captured stride toward +Z, translated the original floor to zero,
+and rounded joint coordinates to 0.00001 metre for compact web delivery.
+No captured joint rotations or limb lengths were edited.
+
+This is an actor's recorded demonstration of pitching, not an individual
+player's technique, a prescribed coaching form, or measured professional data.

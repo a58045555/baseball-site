@@ -1,0 +1,28 @@
+/* One continuous throwing console, with the ball and controls kept together. */
+.play-layout[data-ui=field]{display:block;max-width:1100px;margin:auto;background:#193d35}
+.play-layout[data-ui=field] .play-viewport-column{border-radius:0}
+.play-layout[data-ui=field] .play-world{height:440px}
+.play-layout[data-ui=field] .play-field-console{display:none}
+.play-layout[data-ui=field] .play-panel{display:flex;flex-direction:column;gap:10px;padding:10px 18px;width:100%;box-sizing:border-box;color:#eff3df;background:#193d35}
+.play-layout[data-ui=field] .play-panel>h2,.play-layout[data-ui=field] .play-panel>.play-intro-copy,.play-layout[data-ui=field] .play-panel>.play-result{display:none}
+.play-layout[data-ui=field] .play-options{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.play-layout[data-ui=field] .play-options button{padding:6px;font-size:12px;min-height:42px;background:#254d42;color:#e2e9d6;border-color:#527062}
+.play-layout[data-ui=field] .play-options button[aria-pressed=true]{background:#dce9aa;color:#183c31;border-color:#dce9aa}
+.play-layout[data-ui=field] .play-options small{font-size:10px;color:inherit;opacity:.7}
+.dock-aim-row{display:flex;gap:14px;align-items:center}.dock-aim-row .play-aim{flex:1;justify-content:flex-start;gap:6px}.dock-aim-row .play-aim button{width:44px;height:44px;flex:none;font-size:23px;background:#31594b;color:#fff7dd;border-color:#728b6c}.dock-aim-row .play-launch{width:180px;min-height:44px;padding:10px 14px;font-size:17px;box-shadow:0 3px 0 #923b26;border-radius:10px}.dock-aim-row .play-aim span{color:#c3d3b5;margin:0 8px}
+.dock-ranges{display:grid;grid-template-columns:1fr 1fr;gap:22px}.dock-ranges .play-range{margin:0}.dock-ranges .play-label{color:#dfe9cf;font-size:11px}.dock-ranges .play-label output{color:#f7c68f;font-size:11px}.dock-ranges .play-slider{height:20px;margin:2px 0 0;display:block}
+.dock-more{border-top:1px solid #8da48a33;padding-top:6px;color:#c4d4b8;font-size:11px}.dock-more summary{cursor:pointer;min-height:22px;line-height:22px}.dock-more-content{display:flex;flex-direction:column;gap:12px;padding:12px 0 4px}.dock-more .play-action-options label,.dock-more .play-telemetry span{color:#c6d6bd}.dock-more .play-telemetry strong{color:#eff3da}.dock-more .quiet{background:transparent;border:0;color:#edcf8f;cursor:pointer}.dock-more .play-telemetry{padding-top:8px;border-color:#6f8a6b}
+.dock-camera-select{display:none}.play-layout[data-ui=field] .world-bottom{padding-top:2px}.play-layout[data-ui=field] .aim-readout{padding-bottom:2px}.play-layout[data-ui=field] .aim-legend{padding-top:6px}
+@media(max-width:780px){
+ .play-layout[data-ui=field] .play-world{height:clamp(270px,38vh,340px)}
+ .play-layout[data-ui=field] .play-panel{padding:8px 12px;gap:8px}
+ .dock-aim-row{gap:10px}.dock-aim-row .play-aim{gap:5px}.dock-aim-row .play-aim button{width:37px;height:43px}.dock-aim-row .play-aim span{display:none}.dock-aim-row .play-launch{width:125px;font-size:16px;flex:none}
+ .dock-ranges{gap:14px}.dock-ranges .play-label{display:block;line-height:1.5}.dock-ranges .play-label output{display:block;white-space:nowrap}
+ .play-layout[data-ui=field] .world-camera button:not([data-camera=near]):not([data-camera=far]){display:none}
+ .play-layout[data-ui=field] .world-camera{flex-wrap:nowrap!important;gap:6px}
+ .play-layout[data-ui=field] .dock-camera-select{display:block;flex:1;min-width:0;min-height:37px;background:#254d42;color:#eff3da;border:1px solid #607d68;border-radius:8px;padding:7px 9px;font:650 12px inherit}
+ .play-layout[data-ui=field] .world-bottom{padding:1px 12px 9px}
+ .play-layout[data-ui=field] .world-shot-status{min-height:0;padding:8px 12px;font-size:11px}
+ .play-layout[data-ui=field] .aim-legend{font-size:10px;padding:6px 12px 0;gap:12px}.play-layout[data-ui=field] .aim-readout{font-size:10px;padding:1px 12px 2px;line-height:1.6}
+}
+@media(max-width:370px){.dock-aim-row{gap:7px}.dock-aim-row .play-aim{gap:4px}.dock-aim-row .play-aim button{width:32px}.dock-aim-row .play-launch{width:110px;font-size:14px}.play-layout[data-ui=field] .play-options small{font-size:9px}.play-layout[data-ui=field] .play-panel{padding:8px 10px}.play-layout[data-ui=field] .world-camera button{padding:7px 8px}.play-layout[data-ui=field] .world-tag strong{max-width:160px}}
