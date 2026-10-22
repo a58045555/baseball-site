@@ -1,13 +1,12 @@
-3D pitcher (pitcher-athlete.glb)
-- Body mesh, macro shape targets, "game_engine" rig and skin weights: MakeHuman base mesh via MPFB2,
-  https://github.com/makehumancommunity/mpfb2 (src/mpfb/data). Assets are CC0 1.0 Universal; the license is
-  included as MAKEHUMAN-MPFB2-CC0-LICENSE.txt.
-- Built locally by tools/build-pitcher.mjs: body shape (young adult male, lean athletic), one Catmull-Clark
-  subdivision, and the cap, bill, jersey, pants, shoes and hair as separate modelled meshes generated from
-  the body's own topology. Brows, lips, piping, numbers, belt, socks and undershirt are drawn by shaders.
-- Eyes, cap button, pitcher's glove (dist/scene-models.js) and ball are modelled in code.
+3D pitcher (dist/chibi-pitcher.js)
+- Built entirely in code with Three.js primitives: a chibi-style cartoon athlete (big round head,
+  compact body, round joints, mitten hands) with cel shading and ink outlines. No downloaded model.
+- Pitcher's glove, catcher's mitt, ball and field props: dist/scene-models.js, also built in code.
 
-Three.js GLTFLoader and BufferGeometryUtils: https://github.com/mrdoob/three.js/tree/r180/examples/jsm (MIT, see vendor/THREE-LICENSE.txt).
+Three.js r180, GLTFLoader and BufferGeometryUtils: https://github.com/mrdoob/three.js/tree/r180 (MIT, see vendor/THREE-LICENSE.txt).
 
 Pitching animation: CMU Graphics Lab Motion Capture Database, subject 124, motion 01. See PITCHING-MOTION-ATTRIBUTION.txt.
-Retargeting: capture scaled to the athlete's leg length, two-joint IK, ground contact for planted feet, forearm twist sharing, ball grip.
+Retargeting: capture scaled to the cartoon's leg length, two-joint IK, ground contact for planted feet, forearm twist sharing.
+
+Earlier realistic model (no longer shipped): tools/build-pitcher.mjs builds a MakeHuman/MPFB2 (CC0) athlete;
+tools/legacy/skinned-pitcher.js is its runtime. MAKEHUMAN-MPFB2-CC0-LICENSE.txt is kept for that tool.
