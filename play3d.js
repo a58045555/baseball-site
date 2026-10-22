@@ -197,4 +197,12 @@ function updateFollowCamera(){const p=inspectFlight&&inspectFlightData?F.sample(
 function updateMittCamera(){const t=currentTarget();camera.position.set(t.x-.3*mittZoom,t.y+.15*mittZoom,16.57-1.05*mittZoom);camera.lookAt(t.x,t.y,16.6);camera.near=.025;camera.far=200;camera.fov=42;camera.updateProjectionMatrix();}
 function updateSceneGuides(){if(!camera)return;if(viewName==='mitt'&&mode!=='inspect')updateMittCamera();if(viewName==='follow'&&(mode!=='inspect'||inspectFlight))updateFollowCamera();if(aimGuide){const r=world.getBoundingClientRect();aimGuide.frame(camera,r.width,r.height,!playing);}}
 
-try{setup();}catch(error){console.error('3D 初始化失敗',error);$('#play-fallback').hidden=false;panel.innerHTML='<h2>故事實驗室照常開放。</h2><p>這台裝置未提供可用的 3D 圖形功能。往下滑，仍可玩五個原本的小實驗。</p><a href="#chapter-nav">去玩故事實驗 ↓</a>';lab.querySelectorAll('[data-play-mode]').forEach(b=>b.disabled=true);}
+// The 3D scene is built only when the playground is about to be seen (or a tab is tapped), so the
+// rest of the page is usable at once on a slow phone.
+let started=false,pendingMode=null;
+function start(){if(started)return;started=true;$('#world-help').textContent='正在準備 3D 球場…';
+ try{setup();if(pendingMode)setMode(pendingMode);}catch(error){console.error('3D 初始化失敗',error);$('#play-fallback').hidden=false;panel.innerHTML='<h2>故事實驗室照常開放。</h2><p>這台裝置未提供可用的 3D 圖形功能。往下滑，仍可玩五個原本的小實驗。</p><a href="#chapter-nav">去玩故事實驗 ↓</a>';lab.querySelectorAll('[data-play-mode]').forEach(b=>b.disabled=true);}}
+lab.querySelectorAll('[data-play-mode]').forEach(b=>b.onclick=()=>{pendingMode=b.dataset.playMode;start();});
+panel.innerHTML='<p class="play-intro-copy">往下滑或點上面的分頁，3D 球場就會準備好。</p>';
+if(location.hash==='#playground')setTimeout(start,60);// let the page paint first
+else new IntersectionObserver((e,o)=>{if(e[0].isIntersecting){o.disconnect();('requestIdleCallback' in window?requestIdleCallback:setTimeout)(start,{timeout:800});}},{rootMargin:'300px'}).observe(world);

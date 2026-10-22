@@ -80,5 +80,5 @@ function mount(canvas,step,from=step){
  }catch(e){console.error('立體投手載入失敗',e);canvas.setAttribute('aria-label','立體投手無法載入，請參考下方分步說明');}
 }
 window.BaseballPitcher={mount,cleanup};
-function connect(){const canvas=document.querySelector('#experiment-canvas');if(canvas?.dataset.lessonMode==='body'&&canvas.dataset.lessonChapter==='3')mount(canvas,Number(canvas.dataset.poseStep),Number(canvas.dataset.poseFrom));}
+function connect(){const canvas=document.querySelector('#experiment-canvas');if(canvas?.dataset.lessonMode==='body'&&canvas.dataset.lessonChapter==='3'){cleanup();setTimeout(()=>{if(document.querySelector('#experiment-canvas')===canvas)mount(canvas,Number(canvas.dataset.poseStep),Number(canvas.dataset.poseFrom));},40);}}// paint the lesson first, then build the ballpark
 document.addEventListener('baseball:lesson-render',connect);connect();

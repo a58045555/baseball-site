@@ -8,12 +8,12 @@ export const MOUND_HEIGHT=.254,PLATE_DISTANCE=18.44,BASE=27.43;
 
 function canvasTexture(size,draw,{repeat=1,srgb=true}={}){const c=document.createElement('canvas');c.width=c.height=size;draw(c.getContext('2d'),size);const t=new T.CanvasTexture(c);if(srgb)t.colorSpace=T.SRGBColorSpace;t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(repeat,repeat);t.anisotropy=8;return t;}
 function noise(ctx,size,count,alpha,dark=true){for(let i=0;i<count;i++){const v=Math.random();ctx.fillStyle=dark?`rgba(0,0,0,${alpha*v})`:`rgba(255,255,255,${alpha*v})`;ctx.fillRect(Math.random()*size,Math.random()*size,2+Math.random()*5,2+Math.random()*5);}}
-function grassTexture(){return canvasTexture(1024,(x,s)=>{x.fillStyle='#3d6d33';x.fillRect(0,0,s,s);
+function grassTexture(){return canvasTexture(768,(x,s)=>{x.fillStyle='#3d6d33';x.fillRect(0,0,s,s);
  // mowing pattern: light and dark bands both ways, as groundskeepers cut it
  for(let i=0;i<8;i++){x.fillStyle=i%2?'rgba(255,255,255,.055)':'rgba(0,0,0,.055)';x.fillRect(i*s/8,0,s/8,s);}
  for(let i=0;i<8;i++){x.fillStyle=i%2?'rgba(255,255,255,.03)':'rgba(0,0,0,.03)';x.fillRect(0,i*s/8,s,s/8);}
- noise(x,s,9000,.10);noise(x,s,5000,.06,false);},{repeat:1});}
-function dirtTexture(){return canvasTexture(512,(x,s)=>{x.fillStyle='#a3754f';x.fillRect(0,0,s,s);noise(x,s,6000,.14);noise(x,s,3000,.07,false);},{repeat:1});}
+ noise(x,s,3000,.10);noise(x,s,1500,.06,false);},{repeat:1});}
+function dirtTexture(){return canvasTexture(512,(x,s)=>{x.fillStyle='#a3754f';x.fillRect(0,0,s,s);noise(x,s,2000,.14);noise(x,s,1000,.07,false);},{repeat:1});}
 function crowdTexture(){return canvasTexture(512,(x,s)=>{x.fillStyle='#35506e';x.fillRect(0,0,s,s);
  // one tile is 8 m of stand: five rows of 16 seats, most of them taken, in jersey and jacket colours
  const palette=['#e8e4d8','#c9463f','#20355a','#e9d08c','#3f6b4e','#f3f1ea','#2a2a33','#d3873a','#8d9db2','#b9c7d6','#6b4a3a'];
@@ -37,7 +37,7 @@ export function createBallpark(scene,renderer,{rubberZ=0,quality='high'}={}){
  // sky and environment
  const skyMat=keep(skyMaterial());const sky=mesh(new T.SphereGeometry(420,40,20),skyMat);sky.position.set(0,-20,plateZ-10);
  scene.background=null;scene.fog=keep(new T.Fog(SKY.horizon.clone().lerp(SKY.mid,.35),90,380));
- if(renderer){const pm=new T.PMREMGenerator(renderer);const envScene=new T.Scene();envScene.add(new T.Mesh(new T.SphereGeometry(50,24,12),skyMat.clone()));const env=pm.fromScene(envScene,.05);scene.environment=env.texture;disposables.push(env,pm);}
+ if(renderer&&quality==='high'){const pm=new T.PMREMGenerator(renderer);const envScene=new T.Scene();envScene.add(new T.Mesh(new T.SphereGeometry(50,24,12),skyMat.clone()));const env=pm.fromScene(envScene,.05);scene.environment=env.texture;disposables.push(env,pm);}
 
  // ground: grass everywhere, then the infield skin on top
  const grassTex=keep(grassTexture());grassTex.repeat.set(16,16);
