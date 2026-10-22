@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.min.js';
 import {GLTFLoader} from './vendor/GLTFLoader.js';
-import {makePitcherGlove} from './scene-models.js';
+import {makePitcherGlove,makeBall} from './scene-models.js';
 
 // The pitcher: the site owner's Meshy-generated character (dist/models/pitcher-pro.glb, rigged by
 // tools/meshy with Mixamo bone names). Captured motion arrives as world-space joint positions, so
@@ -24,9 +24,8 @@ export function createPlayer(parent,{url=new URL('./models/pitcher-pro.glb',impo
  const bones={},rest=[];let rig=null,skin=null,fit=null,anatomy={},sole={},gripPoint=null,lastPose=null,disposed=false;
  const materials=[];
  const mat=(color,roughness,extra={})=>{const m=new T.MeshStandardMaterial({color,roughness,...extra});materials.push(m);return m;};
- // ball with raised red seams
- const ball=new T.Mesh(new T.SphereGeometry(.037,24,16),mat(0xf4efe3,.6));ball.castShadow=true;group.add(ball);
- for(let side=0;side<2;side++){const pts=[];for(let i=0;i<=96;i++){const a=i/96*Math.PI*2,theta=.95+.27*Math.cos(2*a),phi=a+side*Math.PI;pts.push(new T.Vector3(.0372*Math.sin(theta)*Math.cos(phi),.0372*Math.cos(theta)*(side?1:-1),.0372*Math.sin(theta)*Math.sin(phi)));}ball.add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts,true),96,.0011,4,true),mat(0xd8513a,.65)));}
+ // the same detailed ball as the playground, at real size
+ const ball=makeBall();ball.scale.setScalar(.037);ball.traverse(o=>{if(o.isMesh)o.castShadow=true;});group.add(ball);
  // the glove may come from props.js (a modelled GLB) or the procedural one; either way it hangs on the left hand
  let glove=null;Promise.resolve(gloveSource).then(g=>{if(!g){g=makePitcherGlove();g.scale.set(1.3,1.25,1.5);}if(disposed)return;glove=g;glove.visible=false;group.add(glove);if(lastPose&&rig)poseMotion(lastPose);}).catch(()=>{});
 
@@ -108,7 +107,7 @@ export function createPlayer(parent,{url=new URL('./models/pitcher-pro.glb',impo
    curl(bones['thumb2_'+s],s==='r'&&!p.released?.5:.25,s);}
   // four-seam grip: index and middle fingers over the ball, thumb underneath
   const {y:hy,across:hx,palm:hz}=handAxes('r'),R=.037,knuckle=world(bones.index1_r).lerp(world(bones.middle1_r),.5);
-  gripPoint=knuckle.clone().addScaledVector(hy,.040).addScaledVector(hz,.040);
+  gripPoint=knuckle.clone().addScaledVector(hy,.032).addScaledVector(hz,.036);
   if(!p.released){for(const [digit,offset] of [['index',.012],['middle',-.010]]){const c=gripPoint.clone().addScaledVector(hx,offset),target=c.clone().addScaledVector(hy.clone().multiplyScalar(.62).addScaledVector(hz,-.78).normalize(),R+.007);solveLimb(bones[digit+'1_r'],bones[digit+'2_r'],bones[digit+'3_r'],target,c.clone().addScaledVector(hz,-.12));curl(bones[digit+'3_r'],.55,'r');}
    solveLimb(bones.thumb1_r,bones.thumb2_r,bones.thumb3_r,gripPoint.clone().addScaledVector(hz.clone().multiplyScalar(.85).addScaledVector(hy,-.3).addScaledVector(hx,.25).normalize(),R+.006),gripPoint.clone().addScaledVector(hx,.12).addScaledVector(hy,-.04));}
   rig.updateMatrixWorld(true);
