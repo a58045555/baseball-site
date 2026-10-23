@@ -5,7 +5,7 @@
 (function(){var shown=false;function show(msg){if(shown)return;shown=true;var d=document.createElement('div');d.id='diag-banner';d.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#7a1f1f;color:#fff;font:12px/1.5 -apple-system,sans-serif;padding:10px 14px;word-break:break-all;max-height:40vh;overflow:auto';d.textContent='診斷：'+msg+' | '+navigator.userAgent.slice(0,80);document.body.appendChild(d);}
 window.addEventListener('error',function(e){show((e.message||'error')+' @ '+((e.filename||'').split('/').pop())+':'+(e.lineno||''));});
 window.addEventListener('unhandledrejection',function(e){var r=e.reason;show('promise: '+(r&&r.message?r.message:String(r)));});
-window.addEventListener('load',function(){setTimeout(function(){try{var c=document.createElement('canvas');var gl=c.getContext('webgl2')||c.getContext('webgl');if(!gl)show('這台裝置沒有 WebGL');}catch(x){show('WebGL 檢查失敗 '+x.message);}},1500);});})();
+})();
 </script>
 <meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#193d35">
 <meta name="description" content="把 3D 棒球拿起來看，瞄準、投球、闖關！陪 8 歲孩子玩懂縫線、旋轉與 160 公里火球。">
