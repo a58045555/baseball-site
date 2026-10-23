@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>投手呈現方式預覽</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--paper:#f6f2e8;--ink:#193d35;--muted:#65736a;--red:#d75038;--lime:#e1ebb4;--line:#dedfd0;--card:#fffdf7}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,'Noto Sans TC','PingFang TC','Microsoft JhengHei',sans-serif;line-height:1.6}
+header{padding:20px 16px 8px;max-width:1100px;margin:auto}
+h1{font-size:24px;margin:0 0 4px;letter-spacing:.02em}
+header p{margin:0;color:var(--muted);font-size:14px}
+.bar{position:sticky;top:0;z-index:5;background:rgba(246,242,232,.96);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:10px 16px}
+.bar-in{max-width:1100px;margin:auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+button,.btn{font:inherit;font-size:14px;border:1px solid #c9d2b8;background:#f4f6e9;color:var(--ink);border-radius:10px;padding:9px 14px;min-height:42px;cursor:pointer}
+button[aria-pressed=true]{background:var(--lime);border-color:#9daf7c}
+.primary{background:var(--red);border-color:var(--red);color:#fff;font-weight:700;min-width:96px}
+.bar input[type=range]{flex:1 1 160px;accent-color:var(--red)}
+.phase{width:100%;font-size:14px;color:#34523e;margin:2px 0 0}
+main{max-width:1100px;margin:auto;padding:14px 16px 40px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;overflow:hidden}
+.card h2{font-size:18px;margin:0;display:flex;gap:8px;align-items:baseline}
+.card h2 span{font-size:13px;color:#fff;background:var(--ink);border-radius:999px;padding:1px 9px}
+.head{padding:14px 16px 8px}
+.head p{margin:4px 0 0;font-size:13px;color:var(--muted)}
+canvas{display:block;width:100%;aspect-ratio:4/3;background:#e9eddb}
+.video-box{position:relative;aspect-ratio:4/3;background:#193d35;display:grid;place-items:center}
+.video-box video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+.video-box .empty{position:relative;color:#e7efd7;text-align:center;padding:20px;font-size:14px}
+.video-box .empty .btn{display:inline-block;margin-top:12px;background:var(--red);border-color:var(--red);color:#fff;font-weight:700}
+.video-cap{position:absolute;left:10px;right:10px;bottom:10px;background:rgba(16,32,26,.78);color:#fff;border-radius:10px;padding:6px 10px;font-size:14px;display:none}
+.tools{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px 14px}
+.tools small{width:100%;color:var(--muted);font-size:12px}
+footer{max-width:1100px;margin:auto;padding:0 16px 30px;font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header><h1>投手怎麼呈現？四種預覽</h1><p>1、3、4 用同一份真人投球動作資料畫出來，同步播放。第 2 種請選一段手機裡的投球影片試試。這頁只是預覽，不會改動網站。</p></header>
+<div class="bar"><div class="bar-in">
+ <button class="primary" id="play">Ⅱ 暫停</button>
+ <button id="speed" aria-pressed="true">慢看 ½×</button>
+ <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="投球動作時間軸">
+ <p class="phase" id="phase" role="status">載入動作資料中…</p>
+</div></div>
+<main>
+ <section class="card"><div class="head"><h2><span>1</span>扁平插畫動畫</h2><p>和網站一樣的插畫風，真人動作驅動。可愛、清楚、手機最順。</p></div><canvas id="flat"></canvas></section>
+ <section class="card"><div class="head"><h2><span>2</span>真人影片＋分段說明</h2><p>最真實。慢動作播放，在四個階段停下來加說明。</p></div>
+  <div class="video-box"><video id="vid" playsinline muted></video><div class="empty" id="vempty">選一段手機裡的投球影片（小朋友投球、比賽轉播都可以）<br>影片只在您的手機上播放，不會上傳。<br><label class="btn">選影片<input id="vfile" type="file" accept="video/*" hidden></label></div><div class="video-cap" id="vcap"></div></div>
+  <div class="tools"><button data-rate="0.25">超慢 ¼×</button><button data-rate="0.5" aria-pressed="true">慢 ½×</button><button data-rate="1">原速</button><button id="vplay">▶ 播放</button><button id="vback">◀ 退一點</button><button id="vfwd">進一點 ▶</button>
+   <small>試試看：播到某一刻按下面的按鈕做標記，再按「依標記播放」，就會在每個階段停下來顯示說明。網站版我會幫您把停點設好。</small>
+   <button data-mark="0">標記：抬腿</button><button data-mark="1">標記：跨步</button><button data-mark="2">標記：出手</button><button data-mark="3">標記：收尾</button><button id="vrun" class="primary">依標記播放</button></div></section>
+ <section class="card"><div class="head"><h2><span>3</span>動作分析骨架圖</h2><p>像運動科學教材。關節顏色代表速度（藍慢、紅快），下方曲線看出力量從髖、軀幹、手肘一路接力到手。</p></div><canvas id="skel"></canvas></section>
+ <section class="card"><div class="head"><h2><span>4</span>像素風</h2><p>復古遊戲感，可愛，但細節最少。</p></div><canvas id="pix"></canvas></section>
+</main>
+<footer>動作資料：CMU Graphics Lab Motion Capture Database，subject 124 motion 01（可自由使用）。</footer>
+<script>
+(async function(){
+const captions=['① 右腳站穩，左膝抬起，準備向前。','② 左腳跨出去，髖和肩膀接著轉。','③ 手肘帶著手往前，球正在加速。','④ 球離開手指，手臂和後腳自然收尾。'];
+const $=s=>document.querySelector(s);
+const m=await fetch('../models/pitching-motion.json').then(r=>r.json());
+const K=m.keyTimes,END=m.duration+.5;
+let time=0,playing=true,rate=.5,last=performance.now();
+
+// ---------- motion helpers ----------
+function sample(t){const f=Math.min(Math.max(t*m.fps,0),m.frames.length-1),i=Math.floor(f),a=m.frames[i],b=m.frames[Math.min(i+1,m.frames.length-1)],u=f-i,p={};for(const k in a)p[k]=[a[k][0]+(b[k][0]-a[k][0])*u,a[k][1]+(b[k][1]-a[k][1])*u,a[k][2]+(b[k][2]-a[k][2])*u];return p;}
+// side view from the throwing-arm side: home plate to the left, nearer = smaller x
+let zmin=1e9,zmax=-1e9,ymax=0;for(const f of m.frames)for(const k in f){zmin=Math.min(zmin,-f[k][2]);zmax=Math.max(zmax,-f[k][2]);ymax=Math.max(ymax,f[k][1]);}
+function view(c,margin=.12){const w=c.width,h=c.height,ground=h*.86,s=Math.min((w*(1-2*margin))/(zmax-zmin+.6),(ground-h*.08)/(ymax+.15));const ox=(w-(zmax-zmin)*s)/2-zmin*s+s*.25;return {s,ground,P:q=>({x:ox+(-q[2])*s,y:ground-q[1]*s,d:q[0]})};}
+function phaseOf(t){return t<1.25?0:t<K.release-.12?1:t<K.release?2:3;}
+function ballPos(p,t,V){if(t<K.release){const q=V.P(p.ri);return q;}const r=V.P(sample(K.release).ri),k=(t-K.release)/.35;return {x:r.x-k*V.s*4.5,y:r.y+k*V.s*.15,gone:k>1};}
+function fit(c){const r=c.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);const w=Math.round(r.width*d),h=Math.round(r.height*d);if(c.width!==w||c.height!==h){c.width=w;c.height=h;}}
+
+// ---------- 1. flat illustration ----------
+const flat=$('#flat'),fx=flat.getContext('2d');
+const INK='#193d35',SKIN='#f0b894',SKIN2='#d79c78',WHITE='#fbf8f0',WHITE2='#e4e0d4',NAVY='#1d3552',NAVY2='#16283f',RED='#d75038',BROWN='#9a5a34',BROWN2='#6e3d22',SHOE='#262a31';
+function seg(c,a,b,w,col,ink){c.lineCap='round';c.lineJoin='round';if(ink){c.strokeStyle=INK;c.lineWidth=w+ink;c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();}c.strokeStyle=col;c.lineWidth=w;c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();}
+function lerp(a,b,u){return {x:a.x+(b.x-a.x)*u,y:a.y+(b.y-a.y)*u};}
+function dot(c,q,r,col,ink){c.beginPath();c.arc(q.x,q.y,r,0,7);if(ink){c.lineWidth=ink;c.strokeStyle=INK;c.stroke();}c.fillStyle=col;c.fill();}
+function drawFlat(t){fit(flat);const c=fx,w=flat.width,h=flat.height,V=view(flat),s=V.s,o=Math.max(2,s*.018);
+ // background: sky, outfield fence, grass, mound, rubber
+ let g=c.createLinearGradient(0,0,0,V.ground);g.addColorStop(0,'#dbe9d6');g.addColorStop(1,'#eef1e2');c.fillStyle=g;c.fillRect(0,0,w,h);
+ const hz=V.ground-s*1.25;c.fillStyle='#2d5e4a';c.fillRect(0,hz-s*.22,w,s*.22);c.fillStyle='#f0d35c';c.fillRect(0,hz-s*.22,w,Math.max(2,s*.02));
+ c.fillStyle='#7fae6a';c.fillRect(0,hz,w,h);c.fillStyle='#74a35f';for(let i=0;i<6;i++){c.beginPath();c.moveTo(i*w/3,hz);c.lineTo(i*w/3+w/6,hz);c.lineTo(i*w/3+w/6+w*.35,h);c.lineTo(i*w/3+w*.35,h);c.fill();}
+ c.fillStyle='#c99a6f';c.beginPath();c.ellipse(w*.5,V.ground+s*.05,w*.62,s*.42,0,Math.PI,0);c.lineTo(w*1.2,h);c.lineTo(-w*.2,h);c.fill();
+ const rb=V.P([0,0,0]);c.fillStyle='#fff';c.fillRect(rb.x-s*.3,V.ground-s*.03,s*.6,s*.05);
+ const p=sample(Math.min(t,m.duration)),P={};for(const k in p)P[k]=V.P(p[k]);
+ // ground shadow
+ c.fillStyle='rgba(60,40,20,.18)';c.beginPath();c.ellipse((P.lf.x+P.rf.x)/2,V.ground+s*.02,Math.abs(P.lf.x-P.rf.x)/2+s*.25,s*.06,0,0,7);c.fill();
+ const far=P.lhip.d>P.rhip.d?'l':'r',near=far==='l'?'r':'l';
+ const leg=(sd,shade)=>{const hip=P[sd+'hip'],k=P[sd+'k'],f=P[sd+'f'],toe=P[sd+'t'],sock=lerp(k,f,.42);
+  seg(c,hip,k,s*.17,shade?WHITE2:WHITE,o);seg(c,k,sock,s*.14,shade?WHITE2:WHITE,o);seg(c,sock,f,s*.11,shade?NAVY2:NAVY,o);
+  seg(c,f,toe,s*.1,SHOE,o);dot(c,lerp(f,toe,.3),s*.065,SHOE);};
+ const arm=(sd,shade)=>{const sh=P[sd+'s'],e=P[sd+'e'],hd=P[sd+'h'],fi=P[sd+'i'],sleeve=lerp(sh,e,.55);
+  seg(c,sh,sleeve,s*.13,shade?WHITE2:WHITE,o);seg(c,sleeve,e,s*.095,shade?SKIN2:SKIN,o);seg(c,e,hd,s*.085,shade?SKIN2:SKIN,o);
+  if(sd==='l'){// glove: a rounded mitt on the hand, pocket toward the plate
+   const gx=lerp(hd,fi,.6);c.save();c.translate(gx.x,gx.y);c.rotate(Math.atan2(fi.y-hd.y,fi.x-hd.x));c.fillStyle=BROWN2;c.strokeStyle=INK;c.lineWidth=o;c.beginPath();c.ellipse(0,0,s*.15,s*.12,0,0,7);c.fill();c.stroke();c.fillStyle=BROWN;c.beginPath();c.ellipse(s*.02,-s*.01,s*.11,s*.085,0,0,7);c.fill();c.strokeStyle='#e9c48e';c.lineWidth=Math.max(1,s*.012);for(let i=-1;i<=1;i++){c.beginPath();c.moveTo(s*.06,i*s*.035);c.lineTo(s*.12,i*s*.04);c.stroke();}c.restore();}
+  else{seg(c,hd,fi,s*.075,shade?SKIN2:SKIN,o);}};
+ const torso=()=>{const pts=[P.rs,P.ls,P.lhip,P.rhip];c.fillStyle=WHITE;c.strokeStyle=INK;c.lineWidth=o*1.4;c.lineJoin='round';c.beginPath();pts.forEach((q,i)=>i?c.lineTo(q.x,q.y):c.moveTo(q.x,q.y));c.closePath();c.stroke();c.fill();
+  seg(c,P.rs,P.ls,s*.2,WHITE,o);seg(c,lerp(P.rs,P.ls,.5),lerp(P.rhip,P.lhip,.5),s*.3,WHITE,0);
+  // belt and piping
+  seg(c,lerp(P.rhip,P.rs,.08),lerp(P.lhip,P.ls,.08),s*.05,NAVY,0);seg(c,P.neck,lerp(P.rhip,P.lhip,.5),Math.max(1.5,s*.018),NAVY,0);};
+ const head=()=>{seg(c,P.neck,P.head,s*.09,SKIN,o);const hc=lerp(P.head,P.headTop,.35),r=s*.12;dot(c,hc,r,SKIN,o);
+  // cap: crown and a bill pointing toward the plate (left)
+  c.fillStyle=NAVY;c.strokeStyle=INK;c.lineWidth=o;c.beginPath();c.arc(hc.x,hc.y-r*.15,r*1.04,Math.PI*1.02,Math.PI*1.98);c.closePath();c.fill();c.stroke();
+  c.beginPath();c.ellipse(hc.x-r*.95,hc.y-r*.18,r*.62,r*.16,-.08,0,7);c.fill();c.stroke();
+  dot(c,{x:hc.x-r*.45,y:hc.y+r*.12},Math.max(1.4,r*.11),INK);c.fillStyle='#e98f7c';c.beginPath();c.arc(hc.x-r*.2,hc.y+r*.42,r*.14,0,7);c.fill();
+  c.fillStyle=RED;c.font=`900 ${r*.7}px Georgia,serif`;c.textAlign='center';c.textBaseline='middle';c.fillText('B',hc.x-r*.1,hc.y-r*.55);};
+ arm(far,true);leg(far,true);torso();leg(near,false);head();arm(near,false);
+ const b=ballPos(p,t,V);if(!b.gone){dot(c,b,s*.045,'#fff',o*.8);c.strokeStyle=RED;c.lineWidth=Math.max(1,s*.01);c.beginPath();c.arc(b.x,b.y,s*.028,-.8,.8);c.stroke();if(t>=K.release){c.strokeStyle='rgba(215,80,56,.35)';c.lineWidth=s*.02;c.setLineDash([s*.06,s*.05]);c.beginPath();const r0=V.P(sample(K.release).ri);c.moveTo(r0.x,r0.y);c.lineTo(b.x,b.y);c.stroke();c.setLineDash([]);}}
+}
+
+// ---------- 3. skeleton analysis ----------
+const skel=$('#skel'),sx=skel.getContext('2d');
+const speed=(k,t)=>{const a=sample(t-.02)[k],b=sample(t+.02)[k];return Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2])/.04;};
+const CURVES=[['hip','髖','#5aa9ff'],['chest','軀幹','#7bd389'],['re','手肘','#f1c970'],['ri','手','#ff6a4c']];
+const curveData=CURVES.map(([k])=>{const arr=[];for(let t=0;t<=m.duration;t+=1/60)arr.push(speed(k,t));return arr;});
+const vmax=Math.max(...curveData.map(a=>Math.max(...a)));
+function heat(v){const u=Math.min(1,v/vmax*1.15);const stops=[[90,169,255],[123,211,137],[241,201,112],[255,90,60]];const x=u*3,i=Math.min(2,Math.floor(x)),f=x-i,a=stops[i],b=stops[i+1];return `rgb(${a.map((q,j)=>Math.round(q+(b[j]-q)*f)).join(',')})`;}
+const BONES=[['hip','spine'],['spine','chest'],['chest','neck'],['neck','head'],['head','headTop'],['ls','rs'],['ls','le'],['le','lh'],['lh','li'],['rs','re'],['re','rh'],['rh','ri'],['lhip','rhip'],['lhip','lk'],['lk','lf'],['lf','lt'],['rhip','rk'],['rk','rf'],['rf','rt']];
+function drawSkel(t){fit(skel);const c=sx,w=skel.width,h=skel.height;c.fillStyle='#193d35';c.fillRect(0,0,w,h);
+ const chartH=h*.26,top=h-chartH;const V=view({width:w,height:top+h*.02},.1),s=V.s;
+ c.strokeStyle='rgba(225,235,180,.08)';c.lineWidth=1;for(let x=0;x<w;x+=s*.25){c.beginPath();c.moveTo(x,0);c.lineTo(x,top);c.stroke();}for(let y=0;y<top;y+=s*.25){c.beginPath();c.moveTo(0,y);c.lineTo(w,y);c.stroke();}
+ c.strokeStyle='rgba(225,235,180,.4)';c.beginPath();c.moveTo(0,V.ground);c.lineTo(w,V.ground);c.stroke();
+ const tt=Math.min(t,m.duration),p=sample(tt),P={};for(const k in p)P[k]=V.P(p[k]);
+ // hand path over the last 0.6 s
+ c.lineWidth=Math.max(2,s*.02);for(let k=0;k<36;k++){const a=tt-.6+k/60,b=a+1/60;if(a<0)continue;const qa=V.P(sample(a).ri),qb=V.P(sample(b).ri);c.strokeStyle=`rgba(255,106,76,${k/36*.8})`;c.beginPath();c.moveTo(qa.x,qa.y);c.lineTo(qb.x,qb.y);c.stroke();}
+ c.lineCap='round';for(const [a,b] of BONES){c.strokeStyle=(P[a].d+P[b].d)/2>0?'rgba(231,239,215,.45)':'rgba(231,239,215,.9)';c.lineWidth=Math.max(2,s*.035);c.beginPath();c.moveTo(P[a].x,P[a].y);c.lineTo(P[b].x,P[b].y);c.stroke();}
+ for(const k of ['hip','chest','neck','headTop','ls','rs','le','re','lh','rh','ri','lhip','rhip','lk','rk','lf','rf','lt','rt']){const v=speed(k,tt);c.beginPath();c.arc(P[k].x,P[k].y,Math.max(3,s*(k==='ri'||k==='rh'?.05:.04)),0,7);c.fillStyle=heat(v);c.fill();}
+ const hv=speed('ri',tt);c.fillStyle='#e7efd7';c.font=`700 ${Math.max(12,s*.13)}px -apple-system,sans-serif`;c.textAlign='left';c.fillText(`手的速度 ${(hv*3.6).toFixed(0)} km/h`,w*.04,h*.08);
+ // kinematic sequence: speed curves with a cursor
+ c.fillStyle='rgba(0,0,0,.18)';c.fillRect(0,top,w,chartH);const pad=w*.04,cw=w-2*pad,y0=h-chartH*.18,ch=chartH*.62;
+ CURVES.forEach(([k,label,col],i)=>{const arr=curveData[i];c.strokeStyle=col;c.lineWidth=Math.max(1.5,w*.004);c.beginPath();arr.forEach((v,j)=>{const x=pad+j/(arr.length-1)*cw,y=y0-v/vmax*ch;j?c.lineTo(x,y):c.moveTo(x,y);});c.stroke();
+  c.fillStyle=col;c.font=`700 ${Math.max(11,w*.026)}px -apple-system,sans-serif`;c.fillText(label,pad+i*w*.13,top+chartH*.2);});
+ const cx=pad+tt/m.duration*cw;c.strokeStyle='#fff';c.lineWidth=2;c.beginPath();c.moveTo(cx,top+chartH*.08);c.lineTo(cx,h-4);c.stroke();
+ c.fillStyle='rgba(231,239,215,.75)';c.font=`${Math.max(10,w*.022)}px -apple-system,sans-serif`;c.textAlign='left';c.fillText('速度曲線：依序衝到高峰＝力量一棒接一棒',w*.04,top-h*.025);
+}
+
+// ---------- 4. pixel art ----------
+const pix=$('#pix'),px=pix.getContext('2d'),low=document.createElement('canvas'),lc=low.getContext('2d');
+function pdisc(c,x,y,r,col){c.fillStyle=col;const R=Math.ceil(r);for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++)if(dx*dx+dy*dy<=r*r+.3)c.fillRect(Math.round(x+dx),Math.round(y+dy),1,1);}
+function pline(c,a,b,r,col){const n=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)));for(let i=0;i<=n;i++)pdisc(c,a.x+(b.x-a.x)*i/n,a.y+(b.y-a.y)*i/n,r,col);}
+function drawPix(t){fit(pix);const W=128,H=96;low.width=W;low.height=H;const c=lc;
+ for(let y=0;y<H;y++){c.fillStyle=y<30?'#8ec5e8':y<44?'#a9d4ec':y<52?'#3a4a60':'#4f8c3d';c.fillRect(0,y,W,1);}
+ for(let y=45;y<52;y+=2)for(let x=y%4?1:0;x<W;x+=3){c.fillStyle=['#d9dde3','#c74a44','#2f5b94','#e6cf8f'][(x*7+y)%4];c.fillRect(x,y,1,1);}
+ c.fillStyle='#2d6b4d';c.fillRect(0,52,W,4);c.fillStyle='#f0d35c';c.fillRect(0,52,W,1);for(let y=56;y<H;y++){c.fillStyle=((y>>2)%2)?'#5a9a45':'#4f8c3d';c.fillRect(0,y,W,1);}
+ const V=view(low,.14),s=V.s;c.fillStyle='#b9875c';c.beginPath();c.ellipse(W/2,V.ground+1,W*.45,4,0,0,7);c.fill();
+ const p=sample(Math.min(t,m.duration)),P={};for(const k in p)P[k]=V.P(p[k]);const far=P.lhip.d>P.rhip.d?'l':'r',near=far==='l'?'r':'l';
+ const leg=sd=>{pline(c,P[sd+'hip'],P[sd+'k'],1.8,'#f4f1ea');pline(c,P[sd+'k'],P[sd+'f'],1.5,'#f4f1ea');pline(c,lerp(P[sd+'k'],P[sd+'f'],.5),P[sd+'f'],1.4,'#1d3552');pline(c,P[sd+'f'],P[sd+'t'],1.2,'#23262c');};
+ const arm=sd=>{pline(c,P[sd+'s'],P[sd+'e'],1.4,'#f4f1ea');pline(c,P[sd+'e'],P[sd+'h'],1.2,'#e7b28f');if(sd==='l')pdisc(c,P.lh.x,P.lh.y,2.2,'#8d5130');};
+ arm(far);leg(far);c.fillStyle='#f4f1ea';c.beginPath();[P.rs,P.ls,P.lhip,P.rhip].forEach((q,i)=>i?c.lineTo(Math.round(q.x),Math.round(q.y)):c.moveTo(Math.round(q.x),Math.round(q.y)));c.fill();pline(c,P.rs,P.ls,1.6,'#f4f1ea');pline(c,lerp(P.rs,P.ls,.5),lerp(P.rhip,P.lhip,.5),2.4,'#f4f1ea');pline(c,P.rhip,P.lhip,.8,'#1d3552');
+ leg(near);const hc=lerp(P.head,P.headTop,.35);pdisc(c,hc.x,hc.y,s*.11,'#e7b28f');pdisc(c,hc.x,hc.y-s*.05,s*.1,'#1d3552');c.fillStyle='#1d3552';c.fillRect(Math.round(hc.x-s*.18),Math.round(hc.y-s*.05),3,1);pdisc(c,hc.x,hc.y+s*.03,s*.07,'#e7b28f');arm(near);
+ const b=ballPos(p,t,V);if(!b.gone)pdisc(c,b.x,b.y,.9,'#fffaf0');
+ // outline pass: darken transparent pixels next to the figure is costly; a 1px drop shadow reads well enough at this size
+ const c2=px;c2.imageSmoothingEnabled=false;c2.clearRect(0,0,pix.width,pix.height);c2.drawImage(low,0,0,pix.width,pix.height);
+}
+
+// ---------- shared timeline ----------
+const play=$('#play'),scrub=$('#scrub'),phase=$('#phase'),speedBtn=$('#speed');
+play.onclick=()=>{playing=!playing;play.textContent=playing?'Ⅱ 暫停':'▶ 播放';};
+speedBtn.onclick=()=>{rate=rate===.5?1:rate===1?.25:.5;speedBtn.textContent=rate===.5?'慢看 ½×':rate===1?'原速 1×':'超慢 ¼×';speedBtn.setAttribute('aria-pressed',String(rate!==1));};
+scrub.oninput=()=>{playing=false;play.textContent='▶ 播放';time=scrub.value/1000*END;};
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(playing){time+=dt*rate;if(time>END)time=0;}
+ scrub.value=Math.round(time/END*1000);phase.textContent=captions[phaseOf(Math.min(time,m.duration))];
+ drawFlat(time);drawSkel(time);drawPix(time);requestAnimationFrame(frame);}
+requestAnimationFrame(frame);
+
+// ---------- 2. video with phase stops ----------
+const vid=$('#vid'),vcap=$('#vcap'),marks=[null,null,null,null];let stopAt=-1;
+$('#vfile').onchange=e=>{const f=e.target.files[0];if(!f)return;vid.src=URL.createObjectURL(f);vid.playbackRate=.5;$('#vempty').style.display='none';vid.play().catch(()=>{});};
+document.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>{vid.playbackRate=Number(b.dataset.rate);document.querySelectorAll('[data-rate]').forEach(a=>a.setAttribute('aria-pressed',String(a===b)));});
+$('#vplay').onclick=()=>{if(!vid.src)return;vid.paused?vid.play():vid.pause();};
+vid.onplay=()=>{$('#vplay').textContent='Ⅱ 暫停';};vid.onpause=()=>{$('#vplay').textContent='▶ 播放';};
+$('#vback').onclick=()=>{vid.pause();vid.currentTime=Math.max(0,vid.currentTime-.1);};$('#vfwd').onclick=()=>{vid.pause();vid.currentTime+=.1;};
+document.querySelectorAll('[data-mark]').forEach(b=>b.onclick=()=>{if(!vid.src)return;const i=Number(b.dataset.mark);marks[i]=vid.currentTime;b.textContent=b.textContent.replace(/ ✓.*/,'')+` ✓ ${vid.currentTime.toFixed(1)}s`;});
+$('#vrun').onclick=()=>{if(!vid.src)return;stopAt=0;vid.currentTime=0;vcap.style.display='none';vid.play();};
+vid.ontimeupdate=()=>{if(stopAt<0)return;while(stopAt<4&&marks[stopAt]==null)stopAt++;if(stopAt>=4){stopAt=-1;return;}if(vid.currentTime>=marks[stopAt]){vid.pause();vcap.textContent=captions[stopAt];vcap.style.display='block';const i=stopAt;stopAt++;setTimeout(()=>{if(stopAt===i+1&&stopAt>=0){vcap.style.display='none';vid.play();}},2500);}};
+})();
+</script>
+</body>
+</html>
