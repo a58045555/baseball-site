@@ -4,3 +4,6 @@
 @media(max-width:780px){.world-tag{font-size:8px;letter-spacing:1px;line-height:1.5}.world-tag strong{font-size:12px;line-height:1.5;margin-top:4px}.world-badge{font-size:9px;padding:5px 7px}.mission-card{top:77px}.play-world:not(.inspect) .world-help{display:none}.play-world:not(.inspect) .world-bottom{justify-content:flex-end}.play-world:not(.inspect) .world-camera{max-width:none;flex-wrap:nowrap}.play-world:not(.inspect) .world-shot-status{top:148px;bottom:auto;margin:0}.world-pad{bottom:58px}.world-throw{bottom:59px}}@media(max-width:370px){.play-range .play-label{display:block;line-height:1.6}.play-range .play-label output{display:block;white-space:nowrap}.play-world.inspect .world-bottom{display:block}.play-world.inspect .world-help{max-width:none;margin-bottom:7px}.play-world.inspect .world-camera{max-width:none;justify-content:flex-start;flex-wrap:nowrap}.play-world.inspect .world-camera button{font-size:9px;padding:6px}}
 .world-throw{font-family:inherit;font-weight:750}
 @media(max-width:780px){.mission-card p{display:none}.world-pad button{height:42px}.world-pad{bottom:56px}.world-throw{bottom:57px}}
+
+/* 2D pitching views: always show their two buttons, phone layout included */
+.world-camera button[data-view2d]{display:inline-block!important;font-size:12px;padding:8px 12px}
