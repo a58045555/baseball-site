@@ -31,14 +31,15 @@ a{color:#1f6a52}
 <body>
 <main>
 <h1>3D 動作分析試做</h1>
-<p class="lead">骨架分析圖做成 3D：用手指左右拖曳可以轉著看。球出手後，用網站同一套物理算出真實球路，飛進本壘的好球帶。這頁只是試做，網站本身沒有改。</p>
+<p class="lead">骨架分析圖做成 3D，還可以切換成木頭人偶或真人模型：用手指左右拖曳可以轉著看。球出手後，用網站同一套物理算出真實球路，飛進本壘的好球帶。這頁只是試做，網站本身沒有改。</p>
 <div class="stage"><canvas id="gl" aria-label="3D 投手動作分析：骨架、手的軌跡與球路"></canvas><div class="hud"><span id="phase">載入中…</span><span>手的速度 <b id="hspeed">0</b> km/h</span></div><div class="legend">關節：藍＝慢、紅＝快　橘線：手走過的路　紅線：球路</div></div>
 <canvas id="chart" aria-label="髖、軀幹、手肘、手的速度曲線"></canvas>
 <div class="row"><button class="primary" id="play">▶ 播放</button><button id="speed" aria-pressed="true">慢看 ½×</button><input id="scrub" type="range" min="0" max="1000" value="0" aria-label="時間軸"></div>
+<div class="row" id="bodies"><button data-body="skeleton" aria-pressed="true">骨架</button><button data-body="mannequin">木頭人偶</button><button data-body="human">真人</button></div>
 <div class="row" id="views"><button data-view="side" aria-pressed="true">側面近看</button><button data-view="sidefull">側面全程</button><button data-view="behind">投手後方</button><button data-view="catcher">捕手看投手</button><button data-view="top">從上往下</button></div>
 <div class="row" id="pitches"></div>
 <p class="cap" id="cap"></p>
-<p class="note">動作：CMU 動作捕捉資料庫 124–01 真人投球（一般投球，不是職業投手速度）。球路：網站的三維物理（重力、阻力、旋轉力）。論文出處見 <a href="../references.html">研究出處</a>。</p>
+<p class="note">動作：CMU 動作捕捉資料庫 124–01 真人投球（一般投球，不是職業投手速度）。真人模型由站主以 Meshy AI 生成，動作依模型腿長縮放。球路：網站的三維物理（重力、阻力、旋轉力）。論文出處見 <a href="../references.html">研究出處</a>。</p>
 </main>
 <script src="../flight3d.js"></script>
 <script type="module">
@@ -89,14 +90,42 @@ const pathGeo=new T.BufferGeometry(),path=new T.Line(pathGeo,lineMat(0xff6a4c));
 const ghostGeo=new T.BufferGeometry(),ghost=new T.Line(ghostGeo,new T.LineDashedMaterial({color:0x9fb8ad,dashSize:.25,gapSize:.18,transparent:true,opacity:.7}));scene.add(ghost);
 
 // ---- the pitch: preset spin and speed, aimed at the middle of the zone from the real release height
-let pitchId='four',flight=null,noSpin=null;
-function plan(){const base=pitchFlightOptions(pitchId,'right',{height:rel[1]});let e=base.elevation,y=0;for(let i=0;i<6;i++){const f=F.simulate({...base,elevation:e,yaw:y});if(f.end.z<16.49){e+=2;continue;}e+=Math.atan2(.8-f.end.y,16.5)*180/Math.PI;y+=Math.atan2(0-f.end.x,16.5)*180/Math.PI;}
+let pitchId='four',flight=null,noSpin=null,releaseHeight=rel[1];
+function plan(){const base=pitchFlightOptions(pitchId,'right',{height:releaseHeight});let e=base.elevation,y=0;for(let i=0;i<6;i++){const f=F.simulate({...base,elevation:e,yaw:y});if(f.end.z<16.49){e+=2;continue;}e+=Math.atan2(.8-f.end.y,16.5)*180/Math.PI;y+=Math.atan2(0-f.end.x,16.5)*180/Math.PI;}
  flight=F.simulate({...base,elevation:e,yaw:y});noSpin=F.simulate({...base,elevation:e,yaw:y,rpm:0,axis:[0,0,0]});
  pathGeo.setFromPoints(flight.points.map(p=>new T.Vector3(p.x,p.y,p.z)));ghostGeo.setFromPoints(noSpin.points.map(p=>new T.Vector3(p.x,p.y,p.z)));ghost.computeLineDistances();
  const p=pitchSpins.find(q=>q.id===pitchId);$('#cap').textContent=`${p.name}：${Math.round(base.speed)} km/h、每分鐘 ${base.rpm} 轉。灰色虛線是同樣出手但不旋轉的球。`;}
 $('#pitches').innerHTML=pitchSpins.filter(p=>['four','curve','slider','change','sinker'].includes(p.id)).map(p=>`<button data-pitch="${p.id}" aria-pressed="${p.id===pitchId}">${p.short}</button>`).join('');
 document.querySelectorAll('[data-pitch]').forEach(b=>b.onclick=()=>{pitchId=b.dataset.pitch;document.querySelectorAll('[data-pitch]').forEach(a=>a.setAttribute('aria-pressed',String(a===b)));plan();time=Math.min(time,K.release-.6);playing=true;$('#play').textContent='Ⅱ 暫停';});
 plan();
+
+// ---- wooden mannequin: capsules along the same captured joints
+const wood=new T.MeshStandardMaterial({color:0xd8b48a,roughness:.55}),unitCyl=new T.CylinderGeometry(1,1,1,16),unitBall=new T.SphereGeometry(1,18,12);
+const SEGS=[['lhip','lk',.075],['lk','lf',.058],['lf','lt',.045],['rhip','rk',.075],['rk','rf',.058],['rf','rt',.045],['hip','chest',.135],['chest','neck',.1],['lhip','rhip',.095],['ls','rs',.08],['neck','head',.05],['ls','le',.052],['le','lh',.042],['lh','li',.032],['rs','re',.052],['re','rh',.042],['rh','ri',.032]];
+const BALLS=[['lk',.072],['rk',.072],['lf',.056],['rf',.056],['le',.05],['re',.05],['lh',.044],['rh',.044],['ls',.085],['rs',.085],['lhip',.095],['rhip',.095],['hip',.13],['chest',.13],['neck',.07]];
+const manq=new T.Group();scene.add(manq);manq.visible=false;
+const manSegs=SEGS.map(([a,b,r])=>{const o=new T.Mesh(unitCyl,wood);o.userData={a,b,r};manq.add(o);return o;});
+const manBalls=BALLS.map(([k,r])=>{const o=new T.Mesh(unitBall,new T.MeshStandardMaterial({color:0xd8b48a,roughness:.5}));o.userData={k,r};o.scale.setScalar(r);manq.add(o);return o;});
+const manHead=new T.Mesh(unitBall,wood);manHead.scale.set(.1,.12,.11);manq.add(manHead);
+const woodC=new T.Color(0xd8b48a);
+function poseMannequin(p,tt){for(const o of manSegs){const {a,b,r}=o.userData,d=p[b].clone().sub(p[a]),l=d.length();o.position.copy(p[a]).addScaledVector(d,.5);o.scale.set(r,Math.max(.001,l),r);o.quaternion.setFromUnitVectors(up,d.divideScalar(l||1));}
+ for(const o of manBalls){o.position.copy(p[o.userData.k]);o.material.color.copy(woodC).lerp(heat(speed(o.userData.k,tt)),.55);}
+ manHead.position.copy(p.head).lerp(p.headTop,.45);}
+
+// ---- real human: the site owner's Meshy model, loaded only when asked for
+let human=null,humanMotion=null,humanHeight=null,humanLoading=false;
+async function loadHuman(){if(human||humanLoading)return;humanLoading=true;$('#phase').textContent='載入真人模型中（約 2 MB）…';
+ try{const {createPlayer,sampleMotion:hs,fitMotion}=await import('./lib/player.js');const pl=createPlayer(scene);await pl.ready;
+  const fitted=fitMotion(pl,m);pl.poseMotion(hs(fitted,K.release));const hp=pl.handPosition();
+  humanMotion={...fitted,frames:fitted.frames.map(f=>Object.fromEntries(Object.entries(f).map(([k,v])=>[k,[v[0]-hp.x,v[1],v[2]-hp.z]])))};
+  humanHeight=hp.y;human={pl,sample:hs};pl.group.visible=bodyMode==='human';if(bodyMode==='human')applyBody();}
+ catch(e){console.error(e);$('#cap').textContent='真人模型載入失敗，請重新整理再試。';}humanLoading=false;}
+let bodyMode='skeleton';
+function applyBody(){const sk=bodyMode==='skeleton',mn=bodyMode==='mannequin',hu=bodyMode==='human';
+ bones.forEach(b=>b.visible=sk);joints.forEach(j=>j.visible=sk);manq.visible=mn;trail.visible=!hu;
+ if(human)human.pl.group.visible=hu;
+ releaseHeight=hu&&humanHeight!=null?humanHeight:rel[1];plan();}
+document.querySelectorAll('[data-body]').forEach(b=>b.onclick=()=>{bodyMode=b.dataset.body;document.querySelectorAll('[data-body]').forEach(a=>a.setAttribute('aria-pressed',String(a===b)));if(bodyMode==='human')loadHuman();applyBody();});
 
 // ---- camera: presets plus finger drag around the pitcher
 const views={side:{t:-Math.PI/2+.25,p:1.32,r:5.2,look:[0,1,-.6],fov:40},sidefull:{t:-Math.PI/2,p:1.45,r:15,look:[0,.9,7.6],fov:62},behind:{t:Math.PI,p:1.12,r:7.5,look:[0,.7,3.2],fov:50},catcher:{t:0,p:1.5,r:19,look:[0,1.1,-.4],fov:14},top:{t:-Math.PI/2,p:.04,r:17,look:[0,0,7.6],fov:62}};
@@ -120,12 +149,13 @@ $('#speed').onclick=e=>{rate=rate===.5?1:rate===1?.25:.5;e.currentTarget.textCon
 $('#scrub').oninput=e=>{playing=false;$('#play').textContent='▶ 播放';time=e.target.value/1000*END();};
 function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;if(playing){time+=dt*rate;if(time>END()){time=0;}}
  const tt=Math.min(time,m.duration),p=sample(tt);
- BONES.forEach(([a,b],i)=>placeBone(bones[i],p[a],p[b]));
- JOINTS.forEach((k,i)=>{joints[i].position.copy(p[k]);joints[i].material.color.copy(heat(speed(k,tt)));});
+ if(bodyMode==='skeleton'){BONES.forEach(([a,b],i)=>placeBone(bones[i],p[a],p[b]));JOINTS.forEach((k,i)=>{joints[i].position.copy(p[k]);joints[i].material.color.copy(heat(speed(k,tt)));});}
+ else if(bodyMode==='mannequin')poseMannequin(p,tt);
+ const hu=bodyMode==='human'&&human;if(hu){const hp=human.sample(humanMotion,tt);hp.released=time>=K.release;human.pl.poseMotion(hp);human.pl.ball.visible=time<K.release;}
  const pos=trailGeo.attributes.position,col=trailGeo.attributes.color;for(let i=0;i<TRAIL;i++){const q=sample(Math.max(0,tt-(TRAIL-1-i)/60)).ri,f=i/(TRAIL-1);pos.setXYZ(i,q.x,q.y,q.z);col.setXYZ(i,.1+.9*f,.25+.17*f,.2+.1*f);}pos.needsUpdate=col.needsUpdate=true;
  const after=time-K.release;
- if(after<0){ball.position.copy(p.ri);path.visible=ghost.visible=false;}
- else{const s=F.sample(flight,Math.min(after,flight.end.t));ball.position.set(s.x,s.y,s.z);path.visible=true;ghost.visible=true;const n=Math.max(2,Math.ceil(flight.points.length*Math.min(1,after/flight.end.t)));pathGeo.setDrawRange(0,n);const g=Math.max(2,Math.ceil(noSpin.points.length*Math.min(1,after/noSpin.end.t)));ghostGeo.setDrawRange(0,g);}
+ if(after<0){if(hu){ball.visible=false;}else{ball.visible=true;ball.position.copy(p.ri);}path.visible=ghost.visible=false;}
+ else{ball.visible=true;const s=F.sample(flight,Math.min(after,flight.end.t));ball.position.set(s.x,s.y,s.z);path.visible=true;ghost.visible=true;const n=Math.max(2,Math.ceil(flight.points.length*Math.min(1,after/flight.end.t)));pathGeo.setDrawRange(0,n);const g=Math.max(2,Math.ceil(noSpin.points.length*Math.min(1,after/noSpin.end.t)));ghostGeo.setDrawRange(0,g);}
  const ph=tt<1.25?0:tt<K.release-.12?1:tt<K.release?2:3;$('#phase').textContent=captions[ph];$('#hspeed').textContent=(speed('ri',tt)*3.6).toFixed(0);
  $('#scrub').value=Math.round(time/END()*1000);drawChart(tt);renderer.render(scene,camera);}
 requestAnimationFrame(frame);
