@@ -35,7 +35,7 @@ a{color:#1f6a52}
 <div class="stage"><canvas id="gl" aria-label="3D 投手動作分析：骨架、手的軌跡與球路"></canvas><div class="hud"><span id="phase">載入中…</span><span>手的速度 <b id="hspeed">0</b> km/h</span></div><div class="legend">關節：藍＝慢、紅＝快　橘線：手走過的路　紅線：球路</div></div>
 <canvas id="chart" aria-label="髖、軀幹、手肘、手的速度曲線"></canvas>
 <div class="row"><button class="primary" id="play">▶ 播放</button><button id="speed" aria-pressed="true">慢看 ½×</button><input id="scrub" type="range" min="0" max="1000" value="0" aria-label="時間軸"></div>
-<div class="row" id="bodies"><button data-body="skeleton" aria-pressed="true">骨架</button><button data-body="mannequin">木頭人偶</button><button data-body="human">真人</button></div>
+<div class="row" id="bodies"><button data-body="skeleton" aria-pressed="true">骨架</button><button data-body="mannequin">木頭人偶</button><button data-body="toy">公仔</button><button data-body="holo">透視</button><button data-body="echo">連續殘影</button><button data-body="human">真人</button></div>
 <div class="row" id="views"><button data-view="close">特寫</button><button data-view="side" aria-pressed="true">側面近看</button><button data-view="sidefull">側面全程</button><button data-view="behind">投手後方</button><button data-view="catcher">捕手看投手</button><button data-view="top">從上往下</button></div>
 <div class="row" id="pitches"></div>
 <p class="cap" id="cap"></p>
@@ -101,20 +101,23 @@ $('#pitches').innerHTML=pitchSpins.filter(p=>['four','curve','slider','change','
 document.querySelectorAll('[data-pitch]').forEach(b=>b.onclick=()=>{pitchId=b.dataset.pitch;document.querySelectorAll('[data-pitch]').forEach(a=>a.setAttribute('aria-pressed',String(a===b)));plan();time=Math.min(time,K.release-.6);playing=true;$('#play').textContent='Ⅱ 暫停';});
 plan();
 
-// ---- wooden mannequin: an artist's lay figure driven by the captured joints
-// Tapered, muscled limbs (lathe profiles), a three-piece torso that twists between pelvis and
-// chest, walnut ball joints that glow with speed, mitten hands, shoes, a capped head and a
-// leather glove on the left hand. Grain is drawn into a canvas texture; it casts a soft shadow.
+// ---- figures: one set of body parts (tapered lathe limbs, ribcage, pelvis, head, hands, feet,
+// ball joints, cap, glove) dressed in different styles and driven by the same captured joints.
+//   wood  — an artist's lay figure: maple with grain and lacquer, walnut joints that glow with speed
+//   toy   — a vinyl collectible in the team uniform: pinstripes, navy socks and sleeves, skin, cleats
+//   holo  — a see-through hologram shell (fresnel glow) with the speed-coloured skeleton inside
+//   echo  — faint copies used for the stroboscopic "trail" mode
+// environment light so lacquer and vinyl reflect something
+{const pm=new T.PMREMGenerator(renderer),env=new T.Scene();const g=new T.SphereGeometry(10,32,16),c=[];const pos=g.attributes.position;for(let i=0;i<pos.count;i++){const y=pos.getY(i)/10,top=new T.Color(0xf6efe0),mid=new T.Color(0x8fb5a6),bot=new T.Color(0x18382f);const col=y>0?mid.clone().lerp(top,y):mid.clone().lerp(bot,-y);c.push(col.r,col.g,col.b);}g.setAttribute('color',new T.Float32BufferAttribute(c,3));env.add(new T.Mesh(g,new T.MeshBasicMaterial({vertexColors:true,side:T.BackSide})));scene.environment=pm.fromScene(env,.04).texture;}
 function grainTexture(base,dark){const c=document.createElement('canvas');c.width=c.height=512;const g=c.getContext('2d');g.fillStyle=base;g.fillRect(0,0,512,512);
  let seed=7;const rnd=()=>((seed=(seed*16807)%2147483647)/2147483647);
  for(let i=0;i<70;i++){const y0=rnd()*512,amp=4+rnd()*10,freq=.006+rnd()*.01,ph=rnd()*6.3;g.strokeStyle=dark;g.globalAlpha=.06+rnd()*.12;g.lineWidth=.6+rnd()*2.2;g.beginPath();for(let x=0;x<=512;x+=8){const y=y0+Math.sin(x*freq+ph)*amp+Math.sin(x*freq*3.1+ph)*amp*.25;x?g.lineTo(x,y):g.moveTo(x,y);}g.stroke();}
  g.globalAlpha=1;const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=4;return t;}
-const maple=new T.MeshPhysicalMaterial({map:grainTexture('#e2c094','#9a6a3c'),roughness:.42,clearcoat:.55,clearcoatRoughness:.35});
-const walnutTex=grainTexture('#8a5a36','#3f2412');
-const navy=new T.MeshStandardMaterial({color:0x1d3552,roughness:.7}),capRed=new T.MeshStandardMaterial({color:0xd75038,roughness:.6});
-const shoeMat=new T.MeshPhysicalMaterial({map:grainTexture('#d2ad80','#8a5a32'),roughness:.45,clearcoat:.4});
-// a limb as a lathe of unit radius and unit length: profile [t, r] pairs, closed at both ends
-function limbGeo(profile){const pts=[new T.Vector2(0,0)];for(const [t,r] of profile)pts.push(new T.Vector2(r,t));pts.push(new T.Vector2(0,1));const g=new T.LatheGeometry(pts,28);g.computeVertexNormals();return g;}
+// uniform cloth: bands along the limb (v = 0 at the first joint, 1 at the second), optional pinstripes around it
+function clothTexture(bands,stripes=true){const W=512,H=256,c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+ for(const [v0,v1,col,striped] of bands){const y0=Math.round((1-v1)*H),y1=Math.round((1-v0)*H);g.fillStyle=col;g.fillRect(0,y0,W,y1-y0);if(stripes&&striped){g.fillStyle='rgba(29,53,82,.55)';for(let x=0;x<W;x+=22)g.fillRect(x,y0,2,y1-y0);}}
+ const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;t.anisotropy=4;return t;}
+function limbGeo(profile){const pts=[new T.Vector2(0,0)];for(const [t,r] of profile)pts.push(new T.Vector2(r,t));pts.push(new T.Vector2(0,1));const g=new T.LatheGeometry(pts,28);const p=g.attributes.position,uv=g.attributes.uv;for(let i=0;i<p.count;i++)uv.setY(i,p.getY(i));g.computeVertexNormals();return g;}
 const PROFILES={
  thigh:limbGeo([[.0,.55],[.04,.86],[.14,1],[.35,.98],[.6,.86],[.85,.7],[.96,.62],[1,.4]]),
  calf:limbGeo([[0,.5],[.04,.74],[.12,.86],[.28,.98],[.45,.9],[.7,.66],[.9,.52],[.98,.46],[1,.3]]),
@@ -122,56 +125,77 @@ const PROFILES={
  fore:limbGeo([[0,.55],[.05,.95],[.2,1],[.4,.92],[.7,.72],[.9,.6],[.97,.56],[1,.35]]),
  neck:limbGeo([[0,.8],[.1,1],[.9,1],[1,.8]]),
  waist:limbGeo([[0,.9],[.12,1],[.5,.84],[.88,1],[1,.95]]),
- // torso pieces: a V-shaped ribcage (wide at the shoulders) and a pelvis (wide at the hips)
  chest:limbGeo([[0,.62],[.08,.76],[.3,.86],[.55,.95],[.75,1],[.88,.97],[.96,.8],[1,.45]]),
  pelvis:limbGeo([[0,.45],[.08,.78],[.3,.96],[.5,1],[.75,.93],[.92,.8],[1,.6]])
 };
 const LIMBS=[['lhip','lk','thigh',.088],['lk','lf','calf',.066],['rhip','rk','thigh',.088],['rk','rf','calf',.066],['ls','le','upper',.054],['le','lh','fore',.047],['rs','re','upper',.054],['re','rh','fore',.047],['neck','head','neck',.042]];
 const JOINT_BALLS=[['ls',.046],['rs',.046],['le',.046],['re',.046],['lh',.036],['rh',.036],['lhip',.07],['rhip',.07],['lk',.06],['rk',.06],['lf',.045],['rf',.045],['neck',.048]];
-const manq=new T.Group();scene.add(manq);manq.visible=false;
+const unitSphere=new T.SphereGeometry(1,32,20),ballGeo=new T.SphereGeometry(1,24,16),handGeo=new T.SphereGeometry(1,20,14);
 const castAll=o=>{o.traverse(c=>{if(c.isMesh){c.castShadow=true;c.receiveShadow=true;}});return o;};
-const limbs=LIMBS.map(([a,b,kind,r])=>{const o=new T.Mesh(PROFILES[kind],maple);o.userData={a,b,r};manq.add(o);return o;});
-const jballs=JOINT_BALLS.map(([k,r])=>{const mat=new T.MeshStandardMaterial({map:walnutTex,color:0xc08a5c,roughness:.45,emissive:0x000000});const o=new T.Mesh(new T.SphereGeometry(1,24,16),mat);o.scale.setScalar(r);o.userData={k};manq.add(o);return o;});
-const unitSphere=new T.SphereGeometry(1,32,20);
-const chest=new T.Mesh(PROFILES.chest,maple),pelvis=new T.Mesh(PROFILES.pelvis,maple),waist=new T.Mesh(PROFILES.waist,maple),head=new T.Mesh(unitSphere,maple);
-manq.add(chest,pelvis,waist,head);
-// cap: crown, bill and button, carried by the head
-const cap=new T.Group();head.add(cap);
-{const crown=new T.Mesh(new T.SphereGeometry(1.06,28,14,0,Math.PI*2,0,Math.PI*.5),navy);crown.position.y=.12;cap.add(crown);
- const bill=new T.Mesh(new T.CylinderGeometry(.95,.95,.07,28,1,false,-Math.PI/2,Math.PI),navy);bill.position.set(0,.14,.32);bill.scale.set(1,1,.9);cap.add(bill);
- const button=new T.Mesh(new T.SphereGeometry(.12,12,8),capRed);button.position.y=1.17;cap.add(button);}
-// hands: a mitten palm with a thumb; feet: shoes
-const handGeo=new T.SphereGeometry(1,20,14);
-function makeHand(){const g=new T.Group(),palm=new T.Mesh(handGeo,maple);palm.scale.set(.042,.058,.022);palm.position.y=.045;const thumb=new T.Mesh(handGeo,maple);thumb.scale.set(.014,.03,.014);thumb.position.set(.036,.035,.012);thumb.rotation.z=-.6;g.add(palm,thumb);manq.add(g);return g;}
-const rHand=makeHand(),lHand=makeHand();
-const shoes=['l','r'].map(()=>{const o=new T.Mesh(unitSphere,shoeMat);manq.add(o);return o;});
-// glove on the left hand: the site's procedural leather glove (laces, web, pocket)
-let glove=null;import('./lib/scene-models.js').then(mod=>{glove=mod.makePitcherGlove();glove.scale.setScalar(1.12);castAll(glove);manq.add(glove);lHand.visible=false;}).catch(()=>{});
-castAll(manq);
-// shadow catcher under the figure
-const shadowPlane=new T.Mesh(new T.PlaneGeometry(8,8),new T.ShadowMaterial({opacity:.32}));shadowPlane.rotation.x=-Math.PI/2;shadowPlane.position.set(0,.003,-.6);shadowPlane.receiveShadow=true;scene.add(shadowPlane);shadowPlane.visible=false;
-
+// style palettes
+const SKIN='#f0c39f',WHITE='#f4f3ef',NAVY='#1d3552',SOCK='#1d3552',RED='#d75038';
+const phys=(o)=>new T.MeshPhysicalMaterial({roughness:.4,clearcoat:.55,clearcoatRoughness:.3,envMapIntensity:.7,...o});
+const woodMap=grainTexture('#e2c094','#9a6a3c'),walnutMap=grainTexture('#8a5a36','#3f2412');
+const STYLE={
+ wood:{body:()=>phys({map:woodMap}),part:{},joint:()=>new T.MeshStandardMaterial({map:walnutMap,color:0xc08a5c,roughness:.45,envMapIntensity:.6}),jointColor:null,cap:()=>new T.MeshStandardMaterial({color:0x1d3552,roughness:.7}),shoe:()=>phys({map:grainTexture('#d2ad80','#8a5a32')}),glow:true,glove:'leather'},
+ toy:{body:()=>phys({color:SKIN,roughness:.5,clearcoat:.35}),
+  part:{thigh:()=>phys({map:clothTexture([[0,1,WHITE,true]]),roughness:.55,clearcoat:.2}),
+   calf:()=>phys({map:clothTexture([[0,.42,WHITE,true],[.42,.56,SOCK],[.56,.62,RED],[.62,1,SOCK]]),roughness:.55,clearcoat:.2}),
+   upper:()=>phys({map:clothTexture([[0,.5,WHITE,true],[.5,.56,NAVY],[.56,1,SKIN]]),roughness:.5,clearcoat:.25}),
+   chest:()=>phys({map:clothTexture([[0,.86,WHITE,true],[.86,1,NAVY]]),roughness:.55,clearcoat:.2}),
+   waist:()=>phys({map:clothTexture([[0,1,WHITE,true]]),roughness:.55,clearcoat:.2}),
+   pelvis:()=>phys({map:clothTexture([[0,.78,WHITE,true],[.78,.94,NAVY],[.94,1,WHITE,true]]),roughness:.55,clearcoat:.2})},
+  joint:k=>phys({color:/s$/.test(k)||/hip|k$/.test(k)?WHITE:/f$/.test(k)?SOCK:SKIN,roughness:.5,clearcoat:.3}),
+  cap:()=>phys({color:NAVY,roughness:.55,clearcoat:.2}),shoe:()=>phys({color:0x1b1f26,roughness:.25,clearcoat:.9}),glow:false,glove:'leather',eyes:true},
+ holo:{body:()=>holoMat(0x66e0ff,.9),part:{},joint:()=>holoMat(0x66e0ff,.6),cap:()=>holoMat(0x9ff0ff,1),shoe:()=>holoMat(0x66e0ff,.9),glow:false,glove:'holo',shadow:false},
+ echo:{body:()=>echoMat(),part:{},joint:()=>echoMat(),cap:()=>echoMat(),shoe:()=>echoMat(),glow:false,glove:'echo',shadow:false}
+};
+function holoMat(color,o){return new T.ShaderMaterial({uniforms:{c:{value:new T.Color(color)},o:{value:o}},transparent:true,depthWrite:false,blending:T.AdditiveBlending,side:T.FrontSide,
+ vertexShader:'varying vec3 vN;varying vec3 vV;void main(){vec4 mv=modelViewMatrix*vec4(position,1.);vN=normalize(normalMatrix*normal);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
+ fragmentShader:'uniform vec3 c;uniform float o;varying vec3 vN;varying vec3 vV;void main(){float f=pow(1.-abs(dot(normalize(vN),normalize(vV))),2.);gl_FragColor=vec4(c*(.18+1.5*f),(.05+.8*f)*o);}'});}
+const echoMat=()=>new T.MeshBasicMaterial({color:0xcfe6d8,transparent:true,opacity:.2,depthWrite:false});
+let gloveModule=null;const gloveReady=import('./lib/scene-models.js').then(m=>gloveModule=m).catch(()=>null);
 const tmpM=new T.Matrix4(),X=new T.Vector3(),Y=new T.Vector3(),Z=new T.Vector3();
 function frameFrom(xHint,yAxis){Y.copy(yAxis).normalize();Z.crossVectors(xHint,Y).normalize();X.crossVectors(Y,Z).normalize();return new T.Quaternion().setFromRotationMatrix(tmpM.makeBasis(X,Y,Z));}
 function placeLimb(o,a,b,r){const d=b.clone().sub(a),l=d.length();o.position.copy(a);o.scale.set(r,Math.max(.001,l),r);o.quaternion.setFromUnitVectors(up,d.divideScalar(l||1));}
-function poseMannequin(p,tt){
- for(const o of limbs){const {a,b,r}=o.userData;placeLimb(o,p[a],p[b],r);}
- for(const o of jballs){const k=o.userData.k;o.position.copy(p[k]);const v=speed(k,tt),u=Math.min(1,v/vmax*1.3);o.material.emissive.copy(heat(v)).multiplyScalar(u*.9);}
- // torso: pelvis and ribcage as oriented lathes (width along the hip or shoulder line), waist between
- const hipX=p.lhip.clone().sub(p.rhip),shX=p.ls.clone().sub(p.rs),upP=p.spine.clone().sub(p.hip).normalize(),upC=p.neck.clone().sub(p.spine).normalize();
- const placeOriented=(o,a,b,w,dpt,xHint)=>{const d=b.clone().sub(a),l=d.length();o.position.copy(a);o.quaternion.copy(frameFrom(xHint,d));o.scale.set(w,l,dpt);};
- placeOriented(pelvis,p.hip.clone().addScaledVector(upP,-.1),p.spine.clone().addScaledVector(upP,.02),hipX.length()*.5+.045,.1,hipX);
- const chestBase=p.spine.clone().lerp(p.chest,.35),chestTop=p.neck.clone().addScaledVector(upC,-.015);
- placeOriented(chest,chestBase,chestTop,shX.length()*.5,.105,shX);
- placeLimb(waist,p.spine.clone().addScaledVector(upP,-.03),chestBase.clone().addScaledVector(upC,.06),.085);
- // head: an egg along neck to crown, facing where the chest faces
- const hUp=p.headTop.clone().sub(p.neck);head.quaternion.copy(frameFrom(shX,hUp));head.position.copy(p.head).lerp(p.headTop,.42);head.scale.set(.085,.108,.095);
- // hands: palm along wrist to fingertip, thumb on the index side
- for(const [h,tip,hand,side] of [['rh','ri',rHand,1],['lh','li',lHand,-1]]){const dir=p[tip].clone().sub(p[h]);const fore=p[h].clone().sub(p[h==='rh'?'re':'le']);const xh=new T.Vector3().crossVectors(fore,dir).multiplyScalar(side);if(xh.lengthSq()<1e-6)xh.set(1,0,0);hand.position.copy(p[h]);hand.quaternion.copy(frameFrom(xh,dir));}
- if(glove){const dir=p.li.clone().sub(p.lh),fore=p.lh.clone().sub(p.le),palm=new T.Vector3().crossVectors(dir,fore);if(palm.lengthSq()<1e-6)palm.set(0,0,1);glove.quaternion.copy(frameFrom(new T.Vector3().crossVectors(dir,palm),dir));glove.position.copy(p.lh).addScaledVector(dir.clone().normalize(),-.02);}
- // shoes: from ankle toward the toe, resting on the ground
- [['lf','lt'],['rf','rt']].forEach(([a,b],i)=>{const s=shoes[i],d=p[b].clone().sub(p[a]),len=d.length();s.position.copy(p[a]).lerp(p[b],.45);s.position.y=Math.max(.04,s.position.y-.02);s.scale.set(.044,.036,len*.6+.045);s.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),d.divideScalar(len||1));});
+function placeOriented(o,a,b,w,dpt,xHint){const d=b.clone().sub(a),l=d.length();o.position.copy(a);o.quaternion.copy(frameFrom(xHint,d));o.scale.set(w,l,dpt);}
+function createFigure(styleName){
+ const st=STYLE[styleName],grp=new T.Group();grp.visible=false;scene.add(grp);
+ const matOf=kind=>(st.part[kind]||st.body)();
+ const limbs=LIMBS.map(([a,b,kind,r])=>{const o=new T.Mesh(PROFILES[kind],matOf(kind));o.userData={a,b,r};grp.add(o);return o;});
+ const jballs=JOINT_BALLS.map(([k,r])=>{const o=new T.Mesh(ballGeo,st.joint(k));o.scale.setScalar(r);o.userData={k};grp.add(o);return o;});
+ const chest=new T.Mesh(PROFILES.chest,matOf('chest')),pelvis=new T.Mesh(PROFILES.pelvis,matOf('pelvis')),waist=new T.Mesh(PROFILES.waist,matOf('waist')),head=new T.Mesh(unitSphere,matOf('head'));grp.add(chest,pelvis,waist,head);
+ const capMat=st.cap();{const crown=new T.Mesh(new T.SphereGeometry(1.06,28,14,0,Math.PI*2,0,Math.PI*.5),capMat);crown.position.y=.12;head.add(crown);
+  const bill=new T.Mesh(new T.CylinderGeometry(.95,.95,.07,28,1,false,-Math.PI/2,Math.PI),capMat);bill.position.set(0,.14,.32);bill.scale.set(1,1,.9);head.add(bill);
+  const button=new T.Mesh(new T.SphereGeometry(.12,12,8),styleName==='wood'||styleName==='toy'?new T.MeshStandardMaterial({color:RED,roughness:.6}):capMat);button.position.y=1.17;head.add(button);}
+ if(st.eyes){const eye=new T.MeshStandardMaterial({color:0x1b1b22,roughness:.3});for(const s of [-1,1]){const e=new T.Mesh(new T.SphereGeometry(.11,12,8),eye);e.position.set(s*.33,.02,.93);head.add(e);}const smile=new T.Mesh(new T.TorusGeometry(.22,.04,8,16,Math.PI*.8),new T.MeshStandardMaterial({color:0xb5594a,roughness:.5}));smile.position.set(0,-.32,.95);smile.rotation.z=Math.PI*1.1;head.add(smile);}
+ const handMat=matOf('hand');function makeHand(){const g=new T.Group(),palm=new T.Mesh(handGeo,handMat);palm.scale.set(.042,.058,.022);palm.position.y=.045;const thumb=new T.Mesh(handGeo,handMat);thumb.scale.set(.014,.03,.014);thumb.position.set(.036,.035,.012);thumb.rotation.z=-.6;g.add(palm,thumb);grp.add(g);return g;}
+ const rHand=makeHand(),lHand=makeHand();
+ const shoeMat=st.shoe(),shoes=[0,1].map(()=>{const o=new T.Mesh(unitSphere,shoeMat);grp.add(o);return o;});
+ let glove=null;gloveReady.then(()=>{if(!gloveModule)return;glove=gloveModule.makePitcherGlove();glove.scale.setScalar(1.12);if(st.glove!=='leather'){const m=st.glove==='holo'?holoMat(0xffc27a,.9):echoMat();glove.traverse(c=>{if(c.isMesh)c.material=m;});}else castAll(glove);grp.add(glove);lHand.visible=false;if(last)pose(...last);});
+ if(st.shadow!==false)castAll(grp);
+ let last=null;
+ function pose(p,tt){last=[p,tt];
+  for(const o of limbs){const {a,b,r}=o.userData;placeLimb(o,p[a],p[b],r);}
+  for(const o of jballs){const k=o.userData.k;o.position.copy(p[k]);if(st.glow){const v=speed(k,tt),u=Math.min(1,v/vmax*1.3);o.material.emissive.copy(heat(v)).multiplyScalar(u*.9);}}
+  const hipX=p.lhip.clone().sub(p.rhip),shX=p.ls.clone().sub(p.rs),upP=p.spine.clone().sub(p.hip).normalize(),upC=p.neck.clone().sub(p.spine).normalize();
+  placeOriented(pelvis,p.hip.clone().addScaledVector(upP,-.1),p.spine.clone().addScaledVector(upP,.02),hipX.length()*.5+.045,.1,hipX);
+  const chestBase=p.spine.clone().lerp(p.chest,.35),chestTop=p.neck.clone().addScaledVector(upC,-.015);
+  placeOriented(chest,chestBase,chestTop,shX.length()*.5,.105,shX);
+  placeLimb(waist,p.spine.clone().addScaledVector(upP,-.03),chestBase.clone().addScaledVector(upC,.06),.085);
+  const hUp=p.headTop.clone().sub(p.neck);head.quaternion.copy(frameFrom(shX,hUp));head.position.copy(p.head).lerp(p.headTop,.42);head.scale.set(.085,.108,.095);
+  for(const [h,tip,hand,side] of [['rh','ri',rHand,1],['lh','li',lHand,-1]]){const dir=p[tip].clone().sub(p[h]);const fore=p[h].clone().sub(p[h==='rh'?'re':'le']);const xh=new T.Vector3().crossVectors(fore,dir).multiplyScalar(side);if(xh.lengthSq()<1e-6)xh.set(1,0,0);hand.position.copy(p[h]);hand.quaternion.copy(frameFrom(xh,dir));}
+  if(glove){const dir=p.li.clone().sub(p.lh),fore=p.lh.clone().sub(p.le),palm=new T.Vector3().crossVectors(dir,fore);if(palm.lengthSq()<1e-6)palm.set(0,0,1);glove.quaternion.copy(frameFrom(new T.Vector3().crossVectors(dir,palm),dir));glove.position.copy(p.lh).addScaledVector(dir.clone().normalize(),-.02);}
+  [['lf','lt'],['rf','rt']].forEach(([a,b],i)=>{const s=shoes[i],d=p[b].clone().sub(p[a]),len=d.length();s.position.copy(p[a]).lerp(p[b],.45);s.position.y=Math.max(.04,s.position.y-.02);s.scale.set(.044,.036,len*.6+.045);s.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),d.divideScalar(len||1));});
+ }
+ return {group:grp,pose};
 }
+const figures={};const figure=name=>figures[name]||(figures[name]=createFigure(name));
+// stroboscopic trail: faint copies at moments through the delivery, revealed as time passes
+const ECHO_TIMES=[1.0,1.38,1.55,1.65,1.74,1.9];let echoes=null;
+function buildEchoes(){if(echoes)return;echoes=ECHO_TIMES.map(t=>{const f=createFigure('echo');f.pose(sample(t),t);f.time=t;return f;});}
+// shadow catcher under the figure
+const shadowPlane=new T.Mesh(new T.PlaneGeometry(8,8),new T.ShadowMaterial({opacity:.32}));shadowPlane.rotation.x=-Math.PI/2;shadowPlane.position.set(0,.003,-.6);shadowPlane.receiveShadow=true;scene.add(shadowPlane);shadowPlane.visible=false;
 
 // ---- real human: the site owner's Meshy model, loaded only when asked for
 let human=null,humanMotion=null,humanHeight=null,humanLoading=false;
@@ -182,8 +206,15 @@ async function loadHuman(){if(human||humanLoading)return;humanLoading=true;$('#p
   humanHeight=hp.y;human={pl,sample:hs};pl.group.visible=bodyMode==='human';if(bodyMode==='human')applyBody();}
  catch(e){console.error(e);$('#cap').textContent='真人模型載入失敗，請重新整理再試。';}humanLoading=false;}
 let bodyMode='skeleton';
-function applyBody(){const sk=bodyMode==='skeleton',mn=bodyMode==='mannequin',hu=bodyMode==='human';shadowPlane.visible=mn||hu;document.querySelector('.legend').textContent=mn?'關節發光：越紅動得越快　橘線：手走過的路　紅線：球路':hu?'紅線：球路　灰色虛線：不旋轉的比較球':'關節：藍＝慢、紅＝快　橘線：手走過的路　紅線：球路';
- bones.forEach(b=>b.visible=sk);joints.forEach(j=>j.visible=sk);manq.visible=mn;trail.visible=!hu;
+const LEGEND={skeleton:'關節：藍＝慢、紅＝快　橘線：手走過的路　紅線：球路',mannequin:'關節發光：越紅動得越快　橘線：手走過的路　紅線：球路',toy:'橘線：手走過的路　紅線：球路　灰色虛線：不旋轉的比較球',holo:'裡面的關節：藍＝慢、紅＝快　橘線：手走過的路　紅線：球路',echo:'淡淡的身影：同一次投球的不同瞬間　紅線：球路',human:'紅線：球路　灰色虛線：不旋轉的比較球'};
+const FIG_FOR={mannequin:'wood',toy:'toy',holo:'holo',echo:'wood'};
+function applyBody(){const hu=bodyMode==='human',sk=bodyMode==='skeleton'||bodyMode==='holo';
+ document.querySelector('.legend').textContent=LEGEND[bodyMode];
+ bones.forEach(b=>b.visible=sk);joints.forEach(j=>j.visible=sk);
+ for(const [name,f] of Object.entries(figures))f.group.visible=FIG_FOR[bodyMode]===name;
+ if(FIG_FOR[bodyMode])figure(FIG_FOR[bodyMode]).group.visible=true;
+ if(bodyMode==='echo')buildEchoes();if(echoes)echoes.forEach(e=>e.group.visible=false);
+ shadowPlane.visible=['mannequin','toy','echo','human'].includes(bodyMode);trail.visible=!hu&&bodyMode!=='toy';
  if(human)human.pl.group.visible=hu;
  releaseHeight=hu&&humanHeight!=null?humanHeight:rel[1];plan();}
 document.querySelectorAll('[data-body]').forEach(b=>b.onclick=()=>{bodyMode=b.dataset.body;document.querySelectorAll('[data-body]').forEach(a=>a.setAttribute('aria-pressed',String(a===b)));if(bodyMode==='human')loadHuman();applyBody();});
@@ -210,8 +241,9 @@ $('#speed').onclick=e=>{rate=rate===.5?1:rate===1?.25:.5;e.currentTarget.textCon
 $('#scrub').oninput=e=>{playing=false;$('#play').textContent='▶ 播放';time=e.target.value/1000*END();};
 function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;if(playing){time+=dt*rate;if(time>END()){time=0;}}
  const tt=Math.min(time,m.duration),p=sample(tt);
- if(bodyMode==='skeleton'){BONES.forEach(([a,b],i)=>placeBone(bones[i],p[a],p[b]));JOINTS.forEach((k,i)=>{joints[i].position.copy(p[k]);joints[i].material.color.copy(heat(speed(k,tt)));});}
- else if(bodyMode==='mannequin')poseMannequin(p,tt);
+ if(bodyMode==='skeleton'||bodyMode==='holo'){BONES.forEach(([a,b],i)=>placeBone(bones[i],p[a],p[b]));JOINTS.forEach((k,i)=>{joints[i].position.copy(p[k]);joints[i].material.color.copy(heat(speed(k,tt)));});}
+ if(FIG_FOR[bodyMode])figure(FIG_FOR[bodyMode]).pose(p,tt);
+ if(bodyMode==='echo'&&echoes)echoes.forEach(e=>e.group.visible=e.time<=tt-.03);
  const hu=bodyMode==='human'&&human;if(hu){const hp=human.sample(humanMotion,tt);hp.released=time>=K.release;human.pl.poseMotion(hp);human.pl.ball.visible=time<K.release;}
  const pos=trailGeo.attributes.position,col=trailGeo.attributes.color;for(let i=0;i<TRAIL;i++){const q=sample(Math.max(0,tt-(TRAIL-1-i)/60)).ri,f=i/(TRAIL-1);pos.setXYZ(i,q.x,q.y,q.z);col.setXYZ(i,.1+.9*f,.25+.17*f,.2+.1*f);}pos.needsUpdate=col.needsUpdate=true;
  const after=time-K.release;
