@@ -190,7 +190,91 @@ function createFigure(styleName){
  }
  return {group:grp,pose};
 }
-const figures={};const figure=name=>figures[name]||(figures[name]=createFigure(name));
+// ---- anatomical skeleton: skull, spine of vertebrae, ribcage, collarbones, shoulder blades, pelvis,
+// long bones with knobbed ends (forearm and shin as two bones), hand and foot rays — all driven by the
+// same captured joints. Glowing spheres at the joints keep the "red = fast" speed colours.
+function createSkeleton(){
+ const grp=new T.Group();grp.visible=false;scene.add(grp);
+ const ivory=new T.MeshPhysicalMaterial({color:0xece0c4,roughness:.55,clearcoat:.25,clearcoatRoughness:.5,envMapIntensity:.6});
+ const dark=new T.MeshBasicMaterial({color:0x101512});
+ const add=(geo,mat=ivory,parent=grp)=>{const o=new T.Mesh(geo,mat);parent.add(o);return o;};
+ // long bone: thick knobbed ends, slim shaft (unit radius, unit length along +y)
+ const longGeo=limbGeo([[0,.55],[.02,.95],[.06,1],[.12,.62],[.22,.42],[.5,.36],[.78,.42],[.88,.62],[.94,.9],[.98,.85],[1,.4]]);
+ const slimGeo=limbGeo([[0,.6],[.03,.95],[.08,.7],[.2,.45],[.5,.4],[.8,.45],[.92,.75],[.97,.9],[1,.5]]);
+ const long=r=>{const o=add(longGeo);o.userData.r=r;return o;};
+ function twin(rA,rB){const g=new T.Group();grp.add(g);const a=add(longGeo,ivory,g),b=add(slimGeo,ivory,g);a.position.x=.62;b.position.x=-.72;a.scale.set(1,1,1);b.scale.set(.62,.97,.62);g.userData.r=rA;return g;}
+ const humerus=[long(.021),long(.021)],femur=[long(.027),long(.027)],fore=[twin(.017),twin(.017)],shin=[twin(.024),twin(.024)];
+ // spine: vertebral bodies with a spinous process pointing back
+ const NV=22,vb=new T.CylinderGeometry(1,1,1,14),proc=new T.BoxGeometry(1,1,1);const verts=[];
+ for(let i=0;i<NV;i++){const g=new T.Group();grp.add(g);const body=add(vb,ivory,g);const sp=add(proc,ivory,g);verts.push({g,body,sp,f:i/(NV-1)});}
+ // ribcage built in metres for a nominal chest (half-width .15, depth .19, height .26), origin at the top of the sternum, back at z=0
+ const cage=new T.Group();grp.add(cage);
+ for(let i=0;i<11;i++){const u=i/10,y=-.035-u*.21,a=.07+.08*Math.sin(Math.min(1,u*1.35+.25)*Math.PI*.5),b=.065+.06*Math.sin(Math.min(1,u*1.2+.3)*Math.PI*.5),drop=.05+.04*u,end=i<7?.5:.32-(i-7)*.07;
+  for(const s of [-1,1]){const pts=[];for(let k=0;k<=14;k++){const ph=-Math.PI/2+(Math.PI*(.5+end))*k/14;pts.push(new T.Vector3(s*a*Math.cos(ph),y-drop*(1+Math.sin(ph))/2+ .012*Math.cos(ph),b+b*Math.sin(ph)-.005));}
+   add(new T.TubeGeometry(new T.CatmullRomCurve3(pts),24,.0055+.002*Math.sin(u*Math.PI),6),ivory,cage);}}
+ const sternum=add(new T.CylinderGeometry(.013,.009,.17,8),ivory,cage);sternum.position.set(0,-.1,.122);sternum.rotation.x=-.12;
+ const scapGeo=new T.SphereGeometry(1,16,10);for(const s of [-1,1]){const sc=add(scapGeo,ivory,cage);sc.scale.set(.05,.065,.009);sc.position.set(s*.095,-.075,-.022);sc.rotation.set(.15,s*-.35,s*.2);}
+ const clav=[add(slimGeo),add(slimGeo)];
+ // pelvis built in metres around the hip centre: iliac wings, sacrum, ring, pubic arch
+ const pel=new T.Group();grp.add(pel);
+ for(const s of [-1,1]){const w=add(new T.SphereGeometry(1,20,14,0,Math.PI*2,0,Math.PI*.62),ivory,pel);w.scale.set(.07,.075,.022);w.position.set(s*.085,.035,-.015);w.rotation.set(-.25,s*.55,s*.35);w.material=ivory;}
+ const ring=add(new T.TorusGeometry(.075,.012,8,32),ivory,pel);ring.rotation.x=Math.PI/2+.35;ring.scale.set(1,.72,1);ring.position.set(0,-.005,.01);
+ const sac=add(new T.ConeGeometry(.04,.11,10),ivory,pel);sac.position.set(0,.0,-.045);sac.rotation.x=Math.PI+.35;
+ const pub=add(new T.TorusGeometry(.04,.012,8,20,Math.PI),ivory,pel);pub.position.set(0,-.055,.045);pub.rotation.set(-.3,0,Math.PI);
+ for(const s of [-1,1]){const cup=add(new T.SphereGeometry(.03,12,10),ivory,pel);cup.position.set(s*.09,-.03,.005);}
+ ivory.side=T.DoubleSide;
+ // skull in head-local metres: cranium, face, jaw, sockets
+ const skull=new T.Group();grp.add(skull);
+ const cr=add(new T.SphereGeometry(1,32,22),ivory,skull);cr.scale.set(.074,.082,.093);cr.position.set(0,.025,-.012);
+ const face=add(new T.SphereGeometry(1,24,16),ivory,skull);face.scale.set(.06,.05,.055);face.position.set(0,-.025,.04);
+ const jaw=add(new T.TorusGeometry(.045,.012,8,24,Math.PI),ivory,skull);jaw.rotation.set(Math.PI/2+.25,0,0);jaw.position.set(0,-.07,.02);jaw.scale.set(1.05,1.15,1);
+ const chin=add(new T.SphereGeometry(.018,12,8),ivory,skull);chin.position.set(0,-.083,.064);
+ for(const s of [-1,1]){const e=add(new T.SphereGeometry(.021,14,10),dark,skull);e.position.set(s*.03,.0,.078);e.scale.set(1,.85,.6);const cheek=add(new T.SphereGeometry(.016,10,8),ivory,skull);cheek.position.set(s*.05,-.025,.06);}
+ const nose=add(new T.ConeGeometry(.011,.022,3),dark,skull);nose.position.set(0,-.028,.092);nose.rotation.x=Math.PI;
+ const teeth=add(new T.BoxGeometry(.05,.012,.012),new T.MeshStandardMaterial({color:0xf8f2e2,roughness:.4}),skull);teeth.position.set(0,-.06,.082);
+ // hands: carpals and five rays (metacarpal + two phalanges) along +y, thumb toward +x
+ const segGeo=limbGeo([[0,.7],[.1,1],[.5,.7],[.9,1],[1,.6]]);
+ function makeHand(){const g=new T.Group();grp.add(g);const carp=add(new T.SphereGeometry(1,14,10),ivory,g);carp.scale.set(.03,.022,.014);carp.position.y=.016;
+  [[-.026,.06,.03,.022],[-.009,.068,.036,.026],[.008,.07,.04,.028],[.024,.064,.036,.025]].forEach(([x,m1,p1,p2],i)=>{let y=.025;for(const [l,r] of [[m1,.0055],[p1,.005],[p2,.0042]]){const s=add(segGeo,ivory,g);s.scale.set(r,l,r);s.position.set(x*(1+(y-.025)*2),y,0);y+=l+.003;}});
+  const th=new T.Group();g.add(th);th.position.set(.024,.02,.006);th.rotation.z=-.75;let y=0;for(const [l,r] of [[.04,.006],[.032,.0055],[.024,.0048]]){const s=add(segGeo,ivory,th);s.scale.set(r,l,r);s.position.y=y;y+=l+.003;}
+  return g;}
+ const hands=[makeHand(),makeHand()];
+ // feet in foot-local metres: +y toward the toes, +z down, +x to the body's left; origin at the ankle
+ function makeFoot(){const g=new T.Group();grp.add(g);const talus=add(new T.SphereGeometry(1,14,10),ivory,g);talus.scale.set(.024,.03,.02);talus.position.set(0,.0,.012);
+  const heel=add(new T.SphereGeometry(1,14,10),ivory,g);heel.scale.set(.024,.04,.026);heel.position.set(0,-.035,.045);
+  const mid=add(new T.SphereGeometry(1,14,10),ivory,g);mid.scale.set(.035,.03,.016);mid.position.set(0,.04,.04);
+  for(let i=0;i<5;i++){const x=(i-2)*.014;const m=add(segGeo,ivory,g);m.scale.set(.0055,.075-Math.abs(i-1.5)*.006,.0055);m.position.set(x*.7,.06,.05);m.rotation.z=-x*1.6;m.rotation.x=-.25;const t=add(segGeo,ivory,g);t.scale.set(.005,.03,.005);t.position.set(x*1.25,.135-Math.abs(i-1)*.007,.068);}
+  return g;}
+ const feet=[makeFoot(),makeFoot()];
+ // speed-coloured joint glow
+ const glowKeys=['ls','rs','le','re','lh','rh','lhip','rhip','lk','rk','lf','rf'];
+ const glows=glowKeys.map(k=>{const o=add(new T.SphereGeometry(1,16,12),new T.MeshBasicMaterial({color:0x5aa9ff,toneMapped:false}));o.scale.setScalar(/h$|f$/.test(k)?.022:.03);o.userData.k=k;return o;});
+ let glove=null;gloveReady.then(()=>{if(!gloveModule)return;glove=gloveModule.makePitcherGlove();glove.scale.setScalar(1.12);castAll(glove);grp.add(glove);hands[1].visible=false;if(last)pose(...last);});
+ castAll(grp);glows.forEach(o=>o.castShadow=false);
+ const V=(a,b)=>b.clone().sub(a);let last=null;
+ function pose(p,tt){last=[p,tt];
+  const shX=V(p.rs,p.ls),hipX=V(p.rhip,p.lhip),upC=V(p.chest,p.neck).normalize(),upP=V(p.hip,p.spine).normalize();
+  const front=new T.Vector3().crossVectors(shX,upC).normalize();
+  [[humerus,'s','e'],[femur,'hip','k']].forEach(([arr,a,b])=>arr.forEach((o,i)=>{const s=i?'l':'r';placeLimb(o,p[s+a],p[s+b],o.userData.r);}));
+  [[fore,'e','h',shX],[shin,'k','f',hipX]].forEach(([arr,a,b,xh])=>arr.forEach((o,i)=>{const s=i?'l':'r';placeOriented(o,p[s+a],p[s+b],o.userData.r,o.userData.r,xh);}));
+  // spine curve from the sacrum to the base of the skull
+  const curve=new T.CatmullRomCurve3([p.hip.clone().addScaledVector(upP,-.02),p.spine,p.chest,p.neck,p.neck.clone().lerp(p.head,.55)]);
+  for(const v of verts){const t=.04+v.f*.92,pt=curve.getPointAt(t),tan=curve.getTangentAt(t),r=v.f<.3?.021:v.f<.75?.016:.011,h=curve.getLength()*.92/NV*.72;
+   v.g.position.copy(pt).addScaledVector(front,-.01);v.g.quaternion.copy(frameFrom(shX,tan));v.body.scale.set(r,h,r*.85);v.sp.scale.set(.006,h*.8,r*1.6);v.sp.position.set(0,-h*.2,-r*1.35);v.sp.rotation.x=.4;}
+  // ribcage hung from the top of the sternum, scaled to this body
+  const top=p.neck.clone().addScaledVector(upC,-.03);cage.position.copy(top).addScaledVector(front,-.045);cage.quaternion.copy(frameFrom(shX,upC));
+  const cw=shX.length()/.5,ch=V(p.spine,p.neck).length()/.257;cage.scale.set(cw,ch,(cw+ch)/2);
+  for(const [i,s] of [[0,'r'],[1,'l']]){const a=cage.localToWorld(new T.Vector3((i?1:-1)*.012,-.01,.12));placeOriented(clav[i],a,p[s+'s'],.011,.011,front);}
+  pel.position.copy(p.hip);pel.quaternion.copy(frameFrom(hipX,upP));const pw=hipX.length()/.188;pel.scale.set(pw,1,1);
+  skull.position.copy(p.head).lerp(p.headTop,.4);skull.quaternion.copy(frameFrom(shX,V(p.neck,p.headTop)));
+  for(const [i,h,tip,el,side] of [[0,'rh','ri','re',1],[1,'lh','li','le',-1]]){const dir=V(p[h],p[tip]),f=V(p[el],p[h]);const xh=new T.Vector3().crossVectors(f,dir).multiplyScalar(side);if(xh.lengthSq()<1e-6)xh.copy(shX);hands[i].position.copy(p[h]);hands[i].quaternion.copy(frameFrom(xh,dir.lengthSq()>1e-8?dir:f));}
+  for(const [i,a,b] of [[0,'rf','rt'],[1,'lf','lt']]){const d=V(p[a],p[b]);feet[i].position.copy(p[a]);feet[i].scale.setScalar(d.length()/.19);feet[i].quaternion.copy(frameFrom(hipX,d));}
+  for(const o of glows){const k=o.userData.k,v=speed(k,tt),c=heat(v);o.position.copy(p[k]);o.material.color.copy(c);}
+  if(glove){const dir=V(p.lh,p.li),fo=V(p.le,p.lh),palm=new T.Vector3().crossVectors(dir,fo);if(palm.lengthSq()<1e-6)palm.set(0,0,1);glove.quaternion.copy(frameFrom(new T.Vector3().crossVectors(dir,palm),dir));glove.position.copy(p.lh).addScaledVector(dir.clone().normalize(),-.02);}
+ }
+ return {group:grp,pose};
+}
+const figures={};const figure=name=>figures[name]||(figures[name]=name==='bones'?createSkeleton():createFigure(name));
 // stroboscopic trail: faint copies at moments through the delivery, revealed as time passes
 const ECHO_TIMES=[1.0,1.38,1.55,1.65,1.74,1.9];let echoes=null;
 function buildEchoes(){if(echoes)return;echoes=ECHO_TIMES.map(t=>{const f=createFigure('echo');f.pose(sample(t),t);f.time=t;return f;});}
@@ -206,18 +290,19 @@ async function loadHuman(){if(human||humanLoading)return;humanLoading=true;$('#p
   humanHeight=hp.y;human={pl,sample:hs};pl.group.visible=bodyMode==='human';if(bodyMode==='human')applyBody();}
  catch(e){console.error(e);$('#cap').textContent='真人模型載入失敗，請重新整理再試。';}humanLoading=false;}
 let bodyMode='skeleton';
-const LEGEND={skeleton:'關節：藍＝慢、紅＝快　橘線：手走過的路　紅線：球路',mannequin:'關節發光：越紅動得越快　橘線：手走過的路　紅線：球路',toy:'橘線：手走過的路　紅線：球路　灰色虛線：不旋轉的比較球',holo:'裡面的關節：藍＝慢、紅＝快　橘線：手走過的路　紅線：球路',echo:'淡淡的身影：同一次投球的不同瞬間　紅線：球路',human:'紅線：球路　灰色虛線：不旋轉的比較球'};
-const FIG_FOR={mannequin:'wood',toy:'toy',holo:'holo',echo:'wood'};
-function applyBody(){const hu=bodyMode==='human',sk=bodyMode==='skeleton'||bodyMode==='holo';
+const LEGEND={skeleton:'發光的關節：藍＝慢、紅＝快　橘線：手走過的路　紅線：球路',mannequin:'關節發光：越紅動得越快　橘線：手走過的路　紅線：球路',toy:'橘線：手走過的路　紅線：球路　灰色虛線：不旋轉的比較球',holo:'裡面的關節：藍＝慢、紅＝快　橘線：手走過的路　紅線：球路',echo:'淡淡的身影：同一次投球的不同瞬間　紅線：球路',human:'紅線：球路　灰色虛線：不旋轉的比較球'};
+const FIG_FOR={skeleton:'bones',mannequin:'wood',toy:'toy',holo:'holo',echo:'wood'};
+function applyBody(){const hu=bodyMode==='human',sk=false;
  document.querySelector('.legend').textContent=LEGEND[bodyMode];
  bones.forEach(b=>b.visible=sk);joints.forEach(j=>j.visible=sk);
  for(const [name,f] of Object.entries(figures))f.group.visible=FIG_FOR[bodyMode]===name;
- if(FIG_FOR[bodyMode])figure(FIG_FOR[bodyMode]).group.visible=true;
+ if(FIG_FOR[bodyMode])figure(FIG_FOR[bodyMode]).group.visible=true;if(bodyMode==='holo')figure('bones').group.visible=true;
  if(bodyMode==='echo')buildEchoes();if(echoes)echoes.forEach(e=>e.group.visible=false);
- shadowPlane.visible=['mannequin','toy','echo','human'].includes(bodyMode);trail.visible=!hu&&bodyMode!=='toy';
+ shadowPlane.visible=['skeleton','mannequin','toy','echo','human'].includes(bodyMode);trail.visible=!hu&&bodyMode!=='toy';
  if(human)human.pl.group.visible=hu;
  releaseHeight=hu&&humanHeight!=null?humanHeight:rel[1];plan();}
 document.querySelectorAll('[data-body]').forEach(b=>b.onclick=()=>{bodyMode=b.dataset.body;document.querySelectorAll('[data-body]').forEach(a=>a.setAttribute('aria-pressed',String(a===b)));if(bodyMode==='human')loadHuman();applyBody();});
+applyBody();
 
 // ---- camera: presets plus finger drag around the pitcher
 const views={close:{t:-Math.PI/2+.55,p:1.36,r:3.3,look:[0,1.05,-.55],fov:36},side:{t:-Math.PI/2+.25,p:1.32,r:5.2,look:[0,1,-.6],fov:40},sidefull:{t:-Math.PI/2,p:1.45,r:15,look:[0,.9,7.6],fov:62},behind:{t:Math.PI,p:1.16,r:8.5,look:[0,1,3.2],fov:50},catcher:{t:0,p:1.5,r:19,look:[0,1.1,-.4],fov:14},top:{t:-Math.PI/2,p:.04,r:17,look:[0,0,7.6],fov:62}};
@@ -241,8 +326,8 @@ $('#speed').onclick=e=>{rate=rate===.5?1:rate===1?.25:.5;e.currentTarget.textCon
 $('#scrub').oninput=e=>{playing=false;$('#play').textContent='▶ 播放';time=e.target.value/1000*END();};
 function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;if(playing){time+=dt*rate;if(time>END()){time=0;}}
  const tt=Math.min(time,m.duration),p=sample(tt);
- if(bodyMode==='skeleton'||bodyMode==='holo'){BONES.forEach(([a,b],i)=>placeBone(bones[i],p[a],p[b]));JOINTS.forEach((k,i)=>{joints[i].position.copy(p[k]);joints[i].material.color.copy(heat(speed(k,tt)));});}
- if(FIG_FOR[bodyMode])figure(FIG_FOR[bodyMode]).pose(p,tt);
+ if(false){BONES.forEach(([a,b],i)=>placeBone(bones[i],p[a],p[b]));JOINTS.forEach((k,i)=>{joints[i].position.copy(p[k]);joints[i].material.color.copy(heat(speed(k,tt)));});}
+ if(FIG_FOR[bodyMode])figure(FIG_FOR[bodyMode]).pose(p,tt);if(bodyMode==='holo')figure('bones').pose(p,tt);
  if(bodyMode==='echo'&&echoes)echoes.forEach(e=>e.group.visible=e.time<=tt-.03);
  const hu=bodyMode==='human'&&human;if(hu){const hp=human.sample(humanMotion,tt);hp.released=time>=K.release;human.pl.poseMotion(hp);human.pl.ball.visible=time<K.release;}
  const pos=trailGeo.attributes.position,col=trailGeo.attributes.color;for(let i=0;i<TRAIL;i++){const q=sample(Math.max(0,tt-(TRAIL-1-i)/60)).ri,f=i/(TRAIL-1);pos.setXYZ(i,q.x,q.y,q.z);col.setXYZ(i,.1+.9*f,.25+.17*f,.2+.1*f);}pos.needsUpdate=col.needsUpdate=true;
