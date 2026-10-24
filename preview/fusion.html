@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3D 動作分析試做</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--paper:#f6f2e8;--ink:#193d35;--muted:#65736a;--red:#d75038;--lime:#e1ebb4;--line:#dedfd0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,'Noto Sans TC','PingFang TC','Microsoft JhengHei',sans-serif;line-height:1.6}
+main{max-width:900px;margin:auto;padding:16px 16px 40px}
+h1{font-size:22px;margin:0 0 4px}
+.lead{color:var(--muted);font-size:14px;margin:0 0 12px}
+.stage{position:relative;border-radius:20px;overflow:hidden;background:#193d35;aspect-ratio:4/3.4}
+#gl{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y}
+.hud{position:absolute;left:14px;top:12px;right:14px;display:flex;justify-content:space-between;color:#e7efd7;font-size:13px;pointer-events:none}
+.hud b{font-size:15px}
+.legend{position:absolute;left:14px;bottom:10px;color:rgba(231,239,215,.75);font-size:11px;pointer-events:none}
+#chart{display:block;width:100%;height:120px;background:#122f28;border-radius:0 0 20px 20px;margin-top:-20px;padding-top:20px}
+.row{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0}
+button{font:inherit;font-size:14px;border:1px solid #c9d2b8;background:#f4f6e9;color:var(--ink);border-radius:10px;padding:9px 13px;min-height:42px;cursor:pointer}
+button[aria-pressed=true]{background:var(--lime);border-color:#9daf7c}
+.primary{background:var(--red);border-color:var(--red);color:#fff;font-weight:700}
+input[type=range]{flex:1 1 160px;accent-color:var(--red)}
+.cap{font-size:15px;margin:8px 0 0}
+.note{font-size:12px;color:var(--muted);margin-top:14px}
+a{color:#1f6a52}
+</style>
+</head>
+<body>
+<main>
+<h1>3D 動作分析試做</h1>
+<p class="lead">骨架分析圖做成 3D：用手指左右拖曳可以轉著看。球出手後，用網站同一套物理算出真實球路，飛進本壘的好球帶。這頁只是試做，網站本身沒有改。</p>
+<div class="stage"><canvas id="gl" aria-label="3D 投手動作分析：骨架、手的軌跡與球路"></canvas><div class="hud"><span id="phase">載入中…</span><span>手的速度 <b id="hspeed">0</b> km/h</span></div><div class="legend">關節：藍＝慢、紅＝快　橘線：手走過的路　紅線：球路</div></div>
+<canvas id="chart" aria-label="髖、軀幹、手肘、手的速度曲線"></canvas>
+<div class="row"><button class="primary" id="play">▶ 播放</button><button id="speed" aria-pressed="true">慢看 ½×</button><input id="scrub" type="range" min="0" max="1000" value="0" aria-label="時間軸"></div>
+<div class="row" id="views"><button data-view="side" aria-pressed="true">側面近看</button><button data-view="sidefull">側面全程</button><button data-view="behind">投手後方</button><button data-view="catcher">捕手看投手</button><button data-view="top">從上往下</button></div>
+<div class="row" id="pitches"></div>
+<p class="cap" id="cap"></p>
+<p class="note">動作：CMU 動作捕捉資料庫 124–01 真人投球（一般投球，不是職業投手速度）。球路：網站的三維物理（重力、阻力、旋轉力）。論文出處見 <a href="../references.html">研究出處</a>。</p>
+</main>
+<script src="../flight3d.js"></script>
+<script type="module">
+import * as T from '../vendor/three.module.min.js';
+import {pitchSpins,pitchFlightOptions} from '../pitch-spins.js';
+const F=window.BaseballFlight3D,$=s=>document.querySelector(s);
+const captions=['① 右腳站穩，左膝抬起，準備向前。','② 左腳跨出去，髖和肩膀接著轉。','③ 手肘帶著手往前，球正在加速。','④ 球離開手指，飛向捕手。'];
+const m=await fetch('../models/pitching-motion.json').then(r=>r.json());const K=m.keyTimes;
+
+// ---- motion: shifted so the hand at release is at the physics origin (x=0, z=0)
+const rel=m.frames[Math.round(K.release*m.fps)].ri,OFF=[-rel[0],0,-rel[2]];
+function sample(t){const f=Math.min(Math.max(t*m.fps,0),m.frames.length-1),i=Math.floor(f),a=m.frames[i],b=m.frames[Math.min(i+1,m.frames.length-1)],u=f-i,p={};for(const k in a)p[k]=new T.Vector3(a[k][0]+(b[k][0]-a[k][0])*u+OFF[0],a[k][1]+(b[k][1]-a[k][1])*u,a[k][2]+(b[k][2]-a[k][2])*u+OFF[2]);return p;}
+const speed=(k,t)=>sample(t+.02)[k].distanceTo(sample(t-.02)[k])/.04;
+const CURVES=[['hip','髖','#5aa9ff'],['chest','軀幹','#7bd389'],['re','手肘','#f1c970'],['ri','手','#ff6a4c']];
+const curveData=CURVES.map(([k])=>{const a=[];for(let t=0;t<=m.duration;t+=1/60)a.push(speed(k,t));return a;});
+const vmax=Math.max(...curveData.map(a=>Math.max(...a)));
+const heat=v=>{const u=Math.min(1,v/vmax*1.15),st=[[90,169,255],[123,211,137],[241,201,112],[255,90,60]],x=u*3,i=Math.min(2,Math.floor(x)),f=x-i,a=st[i],b=st[i+1];return new T.Color(...a.map((q,j)=>(q+(b[j]-q)*f)/255));};
+
+// ---- renderer and scene in the analysis palette
+const canvas=$('#gl'),renderer=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'low-power'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));
+const scene=new T.Scene();scene.background=new T.Color(0x193d35);scene.fog=new T.Fog(0x193d35,14,34);
+const camera=new T.PerspectiveCamera(40,1,.05,100);
+scene.add(new T.HemisphereLight(0xeaf4ff,0x2a4a3e,2.2));const sun=new T.DirectionalLight(0xffffff,1.6);sun.position.set(-4,8,3);scene.add(sun);
+const grid=new T.GridHelper(40,40,0x5f8a74,0x2c5546);grid.position.z=8;scene.add(grid);
+const lineMat=(c,o=1)=>new T.LineBasicMaterial({color:c,transparent:o<1,opacity:o});
+// mound, plate, strike zone frame, distance labels
+const mound=new T.Mesh(new T.CircleGeometry(2.7,48),new T.MeshBasicMaterial({color:0x214537}));mound.rotation.x=-Math.PI/2;mound.position.set(0,.002,-.9);scene.add(mound);
+const plateZ=16.5;
+{const s=new T.Shape();s.moveTo(-.216,0);s.lineTo(.216,0);s.lineTo(.216,.216);s.lineTo(0,.432);s.lineTo(-.216,.216);s.closePath();const p=new T.Mesh(new T.ShapeGeometry(s),new T.MeshBasicMaterial({color:0xf6f2e8}));p.rotation.x=-Math.PI/2;p.position.set(0,.004,plateZ);scene.add(p);}
+const zone=new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(.43,.56,.43)),lineMat(0xe1f0be,.9));zone.position.set(0,.8,plateZ+.215);scene.add(zone);
+function label(text,x,z){const c=document.createElement('canvas');c.width=256;c.height=64;const g=c.getContext('2d');g.fillStyle='rgba(231,239,215,.85)';g.font='bold 34px -apple-system,sans-serif';g.textAlign='center';g.fillText(text,128,44);const s=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(c),transparent:true,depthWrite:false}));s.scale.set(1.6,.4,1);s.position.set(x,.25,z);scene.add(s);}
+label('出手',1.2,0);label('5 m',1.2,5);label('10 m',1.2,10);label('本壘 16.5 m',1.4,plateZ);
+
+// ---- skeleton: thin cylinders for bones, spheres for joints coloured by speed
+const BONES=[['hip','spine'],['spine','chest'],['chest','neck'],['neck','head'],['head','headTop'],['ls','rs'],['ls','le'],['le','lh'],['lh','li'],['rs','re'],['re','rh'],['rh','ri'],['lhip','rhip'],['lhip','lk'],['lk','lf'],['lf','lt'],['rhip','rk'],['rk','rf'],['rf','rt']];
+const JOINTS=['hip','chest','neck','headTop','ls','rs','le','re','lh','rh','ri','lhip','rhip','lk','rk','lf','rf','lt','rt'];
+const boneMat=new T.MeshStandardMaterial({color:0xe7efd7,roughness:.6}),boneGeo=new T.CylinderGeometry(.022,.022,1,8);
+const bones=BONES.map(()=>{const b=new T.Mesh(boneGeo,boneMat);scene.add(b);return b;});
+const jointGeo=new T.SphereGeometry(.045,14,10);const joints=JOINTS.map(k=>{const s=new T.Mesh(jointGeo,new T.MeshStandardMaterial({color:0x5aa9ff,roughness:.4,emissive:0x000000}));if(k==='ri'||k==='rh')s.scale.setScalar(1.3);scene.add(s);return s;});
+const up=new T.Vector3(0,1,0);
+function placeBone(mesh,a,b){const d=b.clone().sub(a),l=d.length();mesh.position.copy(a).addScaledVector(d,.5);mesh.scale.set(1,Math.max(.001,l),1);mesh.quaternion.setFromUnitVectors(up,d.divideScalar(l||1));}
+// hand trail
+const TRAIL=40,trailGeo=new T.BufferGeometry();trailGeo.setAttribute('position',new T.Float32BufferAttribute(new Float32Array(TRAIL*3),3));trailGeo.setAttribute('color',new T.Float32BufferAttribute(new Float32Array(TRAIL*3),3));
+const trail=new T.Line(trailGeo,new T.LineBasicMaterial({vertexColors:true}));scene.add(trail);
+// ball and its path
+const ball=new T.Mesh(new T.SphereGeometry(.06,20,14),new T.MeshStandardMaterial({color:0xfffaf0,roughness:.5}));scene.add(ball);
+const pathGeo=new T.BufferGeometry(),path=new T.Line(pathGeo,lineMat(0xff6a4c));scene.add(path);
+const ghostGeo=new T.BufferGeometry(),ghost=new T.Line(ghostGeo,new T.LineDashedMaterial({color:0x9fb8ad,dashSize:.25,gapSize:.18,transparent:true,opacity:.7}));scene.add(ghost);
+
+// ---- the pitch: preset spin and speed, aimed at the middle of the zone from the real release height
+let pitchId='four',flight=null,noSpin=null;
+function plan(){const base=pitchFlightOptions(pitchId,'right',{height:rel[1]});let e=base.elevation,y=0;for(let i=0;i<6;i++){const f=F.simulate({...base,elevation:e,yaw:y});if(f.end.z<16.49){e+=2;continue;}e+=Math.atan2(.8-f.end.y,16.5)*180/Math.PI;y+=Math.atan2(0-f.end.x,16.5)*180/Math.PI;}
+ flight=F.simulate({...base,elevation:e,yaw:y});noSpin=F.simulate({...base,elevation:e,yaw:y,rpm:0,axis:[0,0,0]});
+ pathGeo.setFromPoints(flight.points.map(p=>new T.Vector3(p.x,p.y,p.z)));ghostGeo.setFromPoints(noSpin.points.map(p=>new T.Vector3(p.x,p.y,p.z)));ghost.computeLineDistances();
+ const p=pitchSpins.find(q=>q.id===pitchId);$('#cap').textContent=`${p.name}：${Math.round(base.speed)} km/h、每分鐘 ${base.rpm} 轉。灰色虛線是同樣出手但不旋轉的球。`;}
+$('#pitches').innerHTML=pitchSpins.filter(p=>['four','curve','slider','change','sinker'].includes(p.id)).map(p=>`<button data-pitch="${p.id}" aria-pressed="${p.id===pitchId}">${p.short}</button>`).join('');
+document.querySelectorAll('[data-pitch]').forEach(b=>b.onclick=()=>{pitchId=b.dataset.pitch;document.querySelectorAll('[data-pitch]').forEach(a=>a.setAttribute('aria-pressed',String(a===b)));plan();time=Math.min(time,K.release-.6);playing=true;$('#play').textContent='Ⅱ 暫停';});
+plan();
+
+// ---- camera: presets plus finger drag around the pitcher
+const views={side:{t:-Math.PI/2+.25,p:1.32,r:5.2,look:[0,1,-.6],fov:40},sidefull:{t:-Math.PI/2,p:1.45,r:15,look:[0,.9,7.6],fov:62},behind:{t:Math.PI,p:1.12,r:7.5,look:[0,.7,3.2],fov:50},catcher:{t:0,p:1.5,r:19,look:[0,1.1,-.4],fov:14},top:{t:-Math.PI/2,p:.04,r:17,look:[0,0,7.6],fov:62}};
+let orbit={...views.side};const look=new T.Vector3();
+function aimCamera(){look.set(...orbit.look);if(camera.fov!==orbit.fov){camera.fov=orbit.fov;camera.updateProjectionMatrix();}camera.position.set(look.x+orbit.r*Math.sin(orbit.p)*Math.sin(orbit.t),look.y+orbit.r*Math.cos(orbit.p),look.z+orbit.r*Math.sin(orbit.p)*Math.cos(orbit.t));camera.lookAt(look);}
+document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{orbit={...views[b.dataset.view]};document.querySelectorAll('[data-view]').forEach(a=>a.setAttribute('aria-pressed',String(a===b)));aimCamera();});
+let drag=null;canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};});canvas.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(dy)>Math.abs(dx)*1.4&&Math.abs(dy)>6){drag=null;return;}orbit.t-=dx*.008;orbit.p=Math.min(1.5,Math.max(.08,orbit.p-dy*.004));drag={x:e.clientX,y:e.clientY};aimCamera();});addEventListener('pointerup',()=>drag=null);
+function resize(){const r=canvas.getBoundingClientRect();renderer.setSize(r.width,r.height,false);camera.aspect=r.width/r.height;camera.updateProjectionMatrix();}new ResizeObserver(resize).observe(canvas);resize();aimCamera();
+
+// ---- speed chart under the stage
+const chart=$('#chart'),cx=chart.getContext('2d');
+function drawChart(t){const d=Math.min(devicePixelRatio,2),w=chart.clientWidth*d,h=chart.clientHeight*d;if(chart.width!==w||chart.height!==h){chart.width=w;chart.height=h;}cx.clearRect(0,0,w,h);const pad=w*.05,top=h*.28,ch=h*.6,cw=w-2*pad;
+ CURVES.forEach(([,lab,col],i)=>{const a=curveData[i];cx.strokeStyle=col;cx.lineWidth=2*d;cx.beginPath();a.forEach((v,j)=>{const x=pad+j/(a.length-1)*cw,y=top+ch-v/vmax*ch;j?cx.lineTo(x,y):cx.moveTo(x,y);});cx.stroke();cx.fillStyle=col;cx.font=`700 ${12*d}px -apple-system,sans-serif`;cx.fillText(lab,pad+i*48*d,top-6*d);});
+ const x=pad+Math.min(t,m.duration)/m.duration*cw;cx.strokeStyle='#fff';cx.lineWidth=1.5*d;cx.beginPath();cx.moveTo(x,top-2*d);cx.lineTo(x,h-4*d);cx.stroke();
+ cx.fillStyle='rgba(231,239,215,.7)';cx.font=`${11*d}px -apple-system,sans-serif`;cx.textAlign='right';cx.fillText('依序衝到高峰＝一棒接一棒',w-pad,top-6*d);cx.textAlign='left';}
+
+// ---- timeline
+let time=.4,playing=true,rate=.5,last=performance.now();const END=()=>Math.max(m.duration,K.release+flight.end.t)+.4;
+$('#play').textContent='Ⅱ 暫停';$('#play').onclick=()=>{playing=!playing;if(playing&&time>=END()-.02)time=0;$('#play').textContent=playing?'Ⅱ 暫停':'▶ 播放';};
+$('#speed').onclick=e=>{rate=rate===.5?1:rate===1?.25:.5;e.currentTarget.textContent=rate===.5?'慢看 ½×':rate===1?'原速 1×':'超慢 ¼×';e.currentTarget.setAttribute('aria-pressed',String(rate!==1));};
+$('#scrub').oninput=e=>{playing=false;$('#play').textContent='▶ 播放';time=e.target.value/1000*END();};
+function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;if(playing){time+=dt*rate;if(time>END()){time=0;}}
+ const tt=Math.min(time,m.duration),p=sample(tt);
+ BONES.forEach(([a,b],i)=>placeBone(bones[i],p[a],p[b]));
+ JOINTS.forEach((k,i)=>{joints[i].position.copy(p[k]);joints[i].material.color.copy(heat(speed(k,tt)));});
+ const pos=trailGeo.attributes.position,col=trailGeo.attributes.color;for(let i=0;i<TRAIL;i++){const q=sample(Math.max(0,tt-(TRAIL-1-i)/60)).ri,f=i/(TRAIL-1);pos.setXYZ(i,q.x,q.y,q.z);col.setXYZ(i,.1+.9*f,.25+.17*f,.2+.1*f);}pos.needsUpdate=col.needsUpdate=true;
+ const after=time-K.release;
+ if(after<0){ball.position.copy(p.ri);path.visible=ghost.visible=false;}
+ else{const s=F.sample(flight,Math.min(after,flight.end.t));ball.position.set(s.x,s.y,s.z);path.visible=true;ghost.visible=true;const n=Math.max(2,Math.ceil(flight.points.length*Math.min(1,after/flight.end.t)));pathGeo.setDrawRange(0,n);const g=Math.max(2,Math.ceil(noSpin.points.length*Math.min(1,after/noSpin.end.t)));ghostGeo.setDrawRange(0,g);}
+ const ph=tt<1.25?0:tt<K.release-.12?1:tt<K.release?2:3;$('#phase').textContent=captions[ph];$('#hspeed').textContent=(speed('ri',tt)*3.6).toFixed(0);
+ $('#scrub').value=Math.round(time/END()*1000);drawChart(tt);renderer.render(scene,camera);}
+requestAnimationFrame(frame);
+document.title='ready';
+</script>
+</body>
+</html>
