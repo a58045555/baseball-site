@@ -2,8 +2,10 @@
 // drawn as a skeleton on a 2D canvas. Joint colour shows speed (blue slow, red fast), the hand
 // leaves a trail, and the speed curves below show the relay from hips to trunk to elbow to hand.
 // No WebGL and no model download. Same controls and events as the 3D version it replaces.
+// The 像素 view plays the PixelLab pixel pitcher (posed from the same capture) on the same timeline.
+import * as Pixel from './pixel-pitcher.js';
 const captions=['右腳站穩，左膝抬起，準備向前。','左腳跨出去，髖和肩膀接著轉。','手肘帶著手往前，球正在加速。','球離開手指，手臂和後腳自然收尾。'];
-const VIEWS=[['side','側面'],['front','正面']];
+const VIEWS=[['pixel','像素'],['side','側面'],['front','正面']];
 const CURVES=[['hip','髖','#5aa9ff'],['chest','軀幹','#7bd389'],['re','手肘','#f1c970'],['ri','手','#ff6a4c']];
 const BONES=[['hip','spine'],['spine','chest'],['chest','neck'],['neck','head'],['head','headTop'],['ls','rs'],['ls','le'],['le','lh'],['lh','li'],['rs','re'],['re','rh'],['rh','ri'],['lhip','rhip'],['lhip','lk'],['lk','lf'],['lf','lt'],['rhip','rk'],['rk','rf'],['rf','rt']];
 const JOINTS=['hip','chest','neck','headTop','ls','rs','le','re','lh','rh','ri','lhip','rhip','lk','rk','lf','rf','lt','rt'];
@@ -13,7 +15,7 @@ const capture=fetch(new URL('./models/pitching-motion.json',import.meta.url)).th
 function cleanup(){if(!active)return;const a=active;active=null;cancelAnimationFrame(a.raf);a.ro?.disconnect();a.controls?.remove();}
 
 function mount(canvas,step,from=step){
- cleanup();const root={canvas,step,from,started:performance.now(),auto:false,raf:0,view:'side',time:0,rate:.5,hasPlayed:false};active=root;
+ cleanup();const root={canvas,step,from,started:performance.now(),auto:false,raf:0,view:'pixel',time:0,rate:.5,hasPlayed:false};active=root;
  const ctx=canvas.getContext('2d');
  const controls=root.controls=document.createElement('div');controls.className='pitcher3d-controls';
  controls.innerHTML=`<div role="group" aria-label="投手視角">${VIEWS.map(([id,name])=>`<button type="button" data-pitcher-view="${id}" aria-pressed="${id===root.view}">${name}</button>`).join('')}</div><div class="pitcher-motion-bar"><button type="button" data-pitcher-play disabled>載入中…</button><button type="button" data-pitcher-speed aria-pressed="true">慢看 ½×</button><label>拖曳看動作<input type="range" min="0" max="1000" value="0" data-pitcher-scrub aria-label="投球動作時間軸"></label></div><p class="pitcher3d-caption" role="status">正在準備投球動作…</p><details class="pitcher-motion-source"><summary>怎麼看這張圖</summary><p>線條是投手的骨架，圓點是關節：藍色代表動得慢，紅色代表動得快。橘色的線是手走過的路。下方四條曲線是髖、軀幹、手肘、手的速度，它們一個接一個衝到最高，就像接力賽把力量傳到球上。動作來自 CMU 動作捕捉資料庫 124–01 的真人投球紀錄，用來觀察全身配合，並非標準姿勢評分。<a href="https://mocap.cs.cmu.edu/subjects/124/" target="_blank" rel="noopener">查看原始資料</a>　<a href="references.html#chain">接力順序的論文</a></p></details>`;
@@ -46,12 +48,20 @@ function mount(canvas,step,from=step){
   else if(root.transition){const f=Math.min(1,(now-root.started)/500),s=f*f*(3-2*f);root.time=root.stops[from]+(root.stops[step]-root.stops[from])*s;if(f===1)root.transition=false;}
   const c=ctx,w=canvas.width,h=canvas.height,t=Math.min(root.time,m.duration),K=m.keyTimes;
   // layout: figure on top, speed chart in the bottom band, clear of the stage labels
-  const chartH=h*.24,chartTop=h-chartH-h*.07,figTop=h*.13,ground=chartTop-h*.05,B=bounds[root.view];
+  const chartH=h*.24,chartTop=h-chartH-h*.07,figTop=h*.13,ground=chartTop-h*.05,pixel=root.view==='pixel',B=bounds[pixel?'side':root.view];
   const s=Math.min((w*.8)/(B.hi-B.lo+.4),(ground-figTop)/(B.top+.1)),ox=(w-(B.hi-B.lo)*s)/2-B.lo*s;
-  const P=q=>{const [x,d]=axis[root.view](q);return {x:ox+x*s,y:ground-q[1]*s,d};};
+  const P=q=>{const [x,d]=axis[pixel?'side':root.view](q);return {x:ox+x*s,y:ground-q[1]*s,d};};
   c.fillStyle='#193d35';c.fillRect(0,0,w,h);
   c.strokeStyle='rgba(225,235,180,.07)';c.lineWidth=1;const step=s*.25;for(let x=ox%step;x<w;x+=step){c.beginPath();c.moveTo(x,0);c.lineTo(x,ground);c.stroke();}for(let y=ground;y>0;y-=step){c.beginPath();c.moveTo(0,y);c.lineTo(w,y);c.stroke();}
   c.strokeStyle='rgba(225,235,180,.45)';c.lineWidth=Math.max(1,w*.002);c.beginPath();c.moveTo(0,ground);c.lineTo(w,ground);c.stroke();
+  if(pixel){
+   // sprite scaled to the figure band, soles on the ground line; the ball sits in the hand, then flies to the plate (right)
+   const i=Pixel.frameAt(t),k=(ground-figTop)/(Pixel.GROUND-4),x0=w/2-Pixel.SIZE/2*k,y0=ground-Pixel.GROUND*k;
+   Pixel.draw(c,i,x0,y0,k,0,0);
+   const br=Math.max(5,k*5),at=q=>[x0+q[0]*k,y0+q[1]*k];
+   if(t<K.release){const q=Pixel.BALL[i];if(q){const [bx,by]=at(q);Pixel.ball(c,bx,by,br);}}
+   else{const [rx,ry]=at(Pixel.BALL[Pixel.RELEASE_FRAME]),u=(root.time-K.release)/.35;if(u<1)Pixel.ball(c,rx+u*w*.6,ry+u*s*.1,br);}
+  }else{
   const p=sample(t),J={};for(const k in p)J[k]=P(p[k]);
   // hand path over the last 0.6 s
   c.lineCap='round';c.lineWidth=Math.max(2,s*.022);for(let k=0;k<36;k++){const a=t-.6+k/60;if(a<0)continue;const qa=P(sample(a).ri),qb=P(sample(a+1/60).ri);c.strokeStyle=`rgba(255,106,76,${k/36*.85})`;c.beginPath();c.moveTo(qa.x,qa.y);c.lineTo(qb.x,qb.y);c.stroke();}
@@ -62,8 +72,9 @@ function mount(canvas,step,from=step){
   if(t<K.release){c.beginPath();c.arc(J.ri.x,J.ri.y,Math.max(3,s*.04),0,7);c.fillStyle='#fffaf0';c.fill();}
   else{const r=P(sample(K.release).ri),k=(root.time-K.release)/.35;if(k<1){const dir=root.view==='side'?-1:0;const bx=r.x+dir*k*w*.6,by=r.y+k*s*(root.view==='side'?.1:.4),rad=Math.max(3,s*.04*(root.view==='front'?1-k*.6:1));c.beginPath();c.arc(bx,by,rad,0,7);c.fillStyle='#fffaf0';c.fill();}}
   // the joint this step is about, ringed in gold while paused
-  const selected=t<1.25?0:t<K.release-.12?1:t<K.release?2:3;
   if(!root.auto&&root.time<m.duration){const key=J[['rf','hip','re','lf'][selected]];c.strokeStyle='#f1c970';c.lineWidth=Math.max(2,s*.015);c.beginPath();c.arc(key.x,key.y,s*.13,0,7);c.stroke();}
+  }
+  const selected=t<1.25?0:t<K.release-.12?1:t<K.release?2:3;
   const fs=Math.max(11,w*.026);c.font=`700 ${fs}px -apple-system,"Noto Sans TC",sans-serif`;c.fillStyle='#e7efd7';c.textAlign='right';c.fillText(`手的速度 ${(speed('ri',t)*3.6).toFixed(0)} km/h`,w*.96,figTop-fs*.2);
   // speed curves with a cursor
   const pad=w*.05,cw=w-2*pad,y0=chartTop+chartH*.92,ch=chartH*.62;c.fillStyle='rgba(0,0,0,.2)';c.fillRect(0,chartTop,w,chartH);

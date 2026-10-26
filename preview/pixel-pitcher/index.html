@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>像素小投手</title>
+<style>
+  :root { --bg: #f4f1ea; --ink: #2b2a28; --muted: #6d6a63; --card: #fffdf8; --line: #ddd7cb; --accent: #24305e; --field: #cfe3c4; --dirt: #c9a77c; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #1d1c1a; --ink: #eeeae2; --muted: #a9a49a; --card: #282624; --line: #3b3935; --accent: #9fb2ff; } }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 system-ui, "Noto Sans TC", sans-serif; }
+  main { max-width: 880px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.lead { color: var(--muted); margin: 0 0 18px; }
+  .stage { background: linear-gradient(var(--field) 0 78%, var(--dirt) 78%); border-radius: 10px; display: flex; justify-content: center; padding: 8px 0 0; border: 1px solid var(--line); }
+  .stage canvas { width: min(800px, 92vw); aspect-ratio: 2; image-rendering: pixelated; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0 6px; }
+  button { font: inherit; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+  button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .status { color: var(--muted); font-size: 14px; min-height: 1.6em; }
+  .status b { color: var(--ink); }
+  h2 { font-size: 17px; margin: 28px 0 8px; }
+  .strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px; text-align: center; cursor: pointer; }
+  figure.key { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  figure.now { outline: 2px solid #e0a020; }
+  figure img { width: 100%; image-rendering: pixelated; background: var(--field); border-radius: 4px; }
+  figcaption { font-size: 12px; color: var(--muted); }
+  figure.key figcaption { color: var(--ink); font-weight: 600; }
+  .note { color: var(--muted); font-size: 13px; margin-top: 24px; }
+  .note a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>像素小投手（PixelLab 試做）</h1>
+  <p class="lead">右投手側面像，每格 160×160 像素，共 24 格。每個姿勢都照 models/pitching-motion.json（CMU 真人動作捕捉）的骨架擺出，播放節奏也用真實投球的時間。</p>
+
+  <div class="stage"><canvas id="cv" width="320" height="160"></canvas></div>
+  <div class="controls">
+    <button id="play" class="on">暫停</button>
+    <button data-speed="1" class="on">真實速度</button>
+    <button data-speed="0.25">慢動作 ¼</button>
+    <button id="prev">◀ 上一格</button>
+    <button id="next">下一格 ▶</button>
+  </div>
+  <div class="status" id="status"></div>
+
+  <h2>逐格（藍框是關鍵姿勢）</h2>
+  <div class="strip" id="strip"></div>
+
+  <p class="note">姿勢參考：<a href="poses.html">關鍵姿勢骨架圖</a>。動作資料：CMU Graphics Lab Motion Capture Database，subject 124 motion 01。人物與每格畫面由 PixelLab 生成。</p>
+</main>
+<script>
+// Frame 0 is the standing sprite; 1-24 are the delivery, sampled from the 60 fps capture at these
+// frames (denser where the arm moves fastest).
+const CAPTURE = [null, 0, 14, 28, 40, 50, 59, 66, 73, 79, 84, 88, 91, 94, 96, 98, 100, 103, 106, 110, 115, 121, 128, 135, 141];
+const LAST = CAPTURE.length - 1;
+const KEY = { 1: '準備', 6: '抬腿', 13: '跨步', 17: '出手', 21: '收尾', 24: '結束' };
+const HOLD = { 0: 900, [LAST]: 700 };
+// The ball sits in the throwing hand (the skeleton's wrist pushed a little past it, which matches
+// where PixelLab drew the hand); it hides in the glove at the set and leaves the canvas after release.
+const BALL = { 7: [56, 101], 8: [29, 95], 9: [11, 70], 10: [11, 47], 11: [19, 30], 12: [28, 21], 13: [41, 18],
+  14: [55, 19], 15: [73, 22], 16: [100, 30], 17: [150, 51] };
+// 50 ms after release the ball is about 1.7 m (140 px) further on.
+const STREAK = { 18: [[160, 52], [292, 58]] };
+const frames = CAPTURE.map((_, i) => { const img = new Image(); img.src = `frames/pitch-${String(i).padStart(2, '0')}.png`; return img; });
+// How long each frame stays up at real speed: the capture time until the next sampled frame.
+const duration = i => HOLD[i] ?? (CAPTURE[i + 1] - CAPTURE[i]) / 60 * 1000;
+
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const status = document.getElementById('status'), strip = document.getElementById('strip');
+let current = 0, playing = true, speed = 1, timer = 0;
+
+frames.forEach((img, i) => {
+  const fig = document.createElement('figure');
+  if (KEY[i]) fig.classList.add('key');
+  const cap = document.createElement('figcaption');
+  cap.textContent = KEY[i] || (i === 0 ? '站姿' : `第 ${i} 格`);
+  const thumb = document.createElement('img');
+  thumb.src = img.src; thumb.alt = cap.textContent;
+  fig.append(thumb, cap);
+  fig.addEventListener('click', () => { setPlaying(false); show(i); });
+  strip.append(fig);
+});
+
+function show(i) {
+  current = i;
+  const draw = () => { ctx.clearRect(0, 0, cv.width, cv.height); ctx.drawImage(frames[i], 0, 0); drawBall(i); };
+  if (frames[i].complete) draw(); else frames[i].onload = () => current === i && draw();
+  const t = CAPTURE[i] == null ? '' : `・動作第 ${(CAPTURE[i] / 60).toFixed(2)} 秒`;
+  status.innerHTML = `${KEY[i] ? `<b>${KEY[i]}</b>・` : ''}第 ${i} / ${LAST} 格${t}`;
+  strip.querySelectorAll('figure').forEach((f, n) => f.classList.toggle('now', n === i));
+}
+function ballAt(x, y, alpha = 1) {
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = '#1b1b1b'; ctx.fillRect(x - 2, y - 3, 5, 7); ctx.fillRect(x - 3, y - 2, 7, 5);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(x - 2, y - 2, 5, 5);
+  ctx.fillStyle = '#d23a3a'; ctx.fillRect(x - 1, y - 2, 1, 1); ctx.fillRect(x + 1, y + 1, 1, 1);
+  ctx.globalAlpha = 1;
+}
+function drawBall(i) {
+  if (BALL[i]) ballAt(...BALL[i]);
+  if (STREAK[i]) {
+    const [[x0, y0], [x1, y1]] = STREAK[i];
+    for (let n = 0; n < 12; n++) { const t = n / 12; ballAt(Math.round(x0 + (x1 - x0) * t), Math.round(y0 + (y1 - y0) * t), 0.15 + t * 0.35); }
+    ballAt(x1, y1);
+  }
+}
+function tick() {
+  show(current);
+  timer = setTimeout(() => { current = (current + 1) % frames.length; tick(); }, duration(current) / speed);
+}
+function setPlaying(on) {
+  playing = on; clearTimeout(timer);
+  document.getElementById('play').textContent = on ? '暫停' : '播放';
+  document.getElementById('play').classList.toggle('on', on);
+  if (on) tick();
+}
+document.getElementById('play').onclick = () => setPlaying(!playing);
+document.getElementById('prev').onclick = () => { setPlaying(false); show((current + frames.length - 1) % frames.length); };
+document.getElementById('next').onclick = () => { setPlaying(false); show((current + 1) % frames.length); };
+document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => {
+  speed = +b.dataset.speed;
+  document.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', x === b));
+  if (playing) setPlaying(true);
+});
+if (frames[0].complete) setPlaying(true); else frames[0].onload = () => setPlaying(true);
+</script>
+</body>
+</html>

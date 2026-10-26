@@ -2,6 +2,7 @@ import * as THREE from './vendor/three.module.min.js';
 import {makeCatcherMitt,createAirflow,createAimGuide,addDistanceMarks} from './scene-models.js';
 
 import {pitchSpins,spinAxis,pitchDefaults,pitchFlightOptions} from './pitch-spins.js';
+import * as Pixel from './pixel-pitcher.js';
 const F=window.BaseballFlight3D;
 const lab=document.createElement('section');lab.id='playground';lab.className='playground';lab.setAttribute('aria-label','3D 棒球遊樂場');
 lab.innerHTML=`<div class="play-intro"><div><div class="play-eyebrow">THE BALL IS IN YOUR HANDS · 3D PLAY LAB</div><h1>這次，把球<em>玩真的。</em></h1><p>一顆有皮革、有縫線的立體棒球。轉轉看，再投進手套。</p></div><div class="play-intro-actions"><a class="play-old" href="#pitcher">看投手動作 ↘</a><a class="play-old" href="#chapter-nav">去故事實驗室 ↘</a></div></div>
@@ -170,8 +171,13 @@ function side2d(c,w,h,d){
  c.fillStyle='rgba(225,240,190,.12)';c.fillRect(X(16.5-.215),Y(1.08),.43*hs,(1.08-.52)*vs);c.strokeStyle=G2.zone;c.lineWidth=Math.max(1,d);c.strokeRect(X(16.5-.215),Y(1.08),.43*hs,(1.08-.52)*vs);
  const t=currentT2();c.strokeStyle=G2.gold;c.lineWidth=Math.max(2,2*d);c.beginPath();c.ellipse(X(16.5),Y(t.y),Math.max(5*d,t.radius*hs*1.5),t.radius*vs,0,0,7);c.stroke();
  c.fillStyle=G2.mitt;c.beginPath();c.ellipse(X(16.62),Y(t.y),5*d,8*d,0,0,7);c.fill();
+ // the pixel pitcher, its hand on the release point: release frame while aiming, follow-through as the
+ // ball flies, last frame once it lands; the captured skeleton stands in until the frames have loaded
+ const pixelFrame=!motion2d?Pixel.RELEASE_FRAME:playing?Pixel.frameAt(motion2d.keyTimes.release+elapsed):flight?Pixel.CAPTURE.length-1:Pixel.RELEASE_FRAME,hand=Pixel.BALL[Pixel.RELEASE_FRAME];
+ const drewPixel=Pixel.draw(c,pixelFrame,X(0),Y(1.8),vs*1.8/(Pixel.GROUND-hand[1]),hand[0],hand[1]);
+ if(!drewPixel)Pixel.load().then(()=>{if(renderer&&mode!=='inspect')renderOnce();});
  // the pitcher at release, from the captured motion, hand placed at the release point
- if(motion2d){const m=motion2d,f=m.frames[Math.min(m.frames.length-1,Math.round(m.keyTimes.release*m.fps))],hand=f.ri,s=vs*1.8/Math.max(1,hand[1]);const P=q=>({x:X(0)+(q[2]-hand[2])*s,y:ground-q[1]*s});// scaled so the hand meets the 1.8 m release point
+ if(motion2d&&!drewPixel){const m=motion2d,f=m.frames[Math.min(m.frames.length-1,Math.round(m.keyTimes.release*m.fps))],hand=f.ri,s=vs*1.8/Math.max(1,hand[1]);const P=q=>({x:X(0)+(q[2]-hand[2])*s,y:ground-q[1]*s});// scaled so the hand meets the 1.8 m release point
   const bones=[['hip','spine'],['spine','chest'],['chest','neck'],['neck','head'],['head','headTop'],['ls','rs'],['ls','le'],['le','lh'],['rs','re'],['re','rh'],['rh','ri'],['lhip','rhip'],['lhip','lk'],['lk','lf'],['lf','lt'],['rhip','rk'],['rk','rf'],['rf','rt']];
   c.lineWidth=Math.max(2,s*.035);for(const [a,b] of bones){const pa=P(f[a]),pb=P(f[b]);c.strokeStyle=(f[a][0]+f[b][0])/2>0?'rgba(231,239,215,.4)':'rgba(231,239,215,.85)';c.beginPath();c.moveTo(pa.x,pa.y);c.lineTo(pb.x,pb.y);c.stroke();}
   for(const k of ['hip','chest','headTop','ls','rs','le','re','lh','rh','lk','rk','lf','rf']){const q=P(f[k]);c.fillStyle=G2.blue;c.beginPath();c.arc(q.x,q.y,Math.max(2.5*d,s*.03),0,7);c.fill();}}

@@ -1,0 +1,8 @@
+Pixel pitcher frames (pitch-00.png to pitch-24.png)
+
+Character and frames generated with PixelLab (https://pixellab.ai) for this site.
+Each frame is posed from the CMU motion capture in ../pitching-motion.json
+(see ../PITCHING-MOTION-ATTRIBUTION.txt), sampled at the capture frames listed
+in ../../pixel-pitcher.js. From stride on, the glove arm is tucked to the chest.
+pitch-00.png is the standing sprite; 1-24 are the delivery. 160 x 160 px,
+right-handed, side view facing the plate (to the right).

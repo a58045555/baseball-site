@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>像素投手姿勢參考</title>
+<style>
+  :root { --bg: #f4f1ea; --ink: #2b2a28; --muted: #6d6a63; --card: #fffdf8; --line: #ddd7cb; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1d1c1a; --ink: #eeeae2; --muted: #a9a49a; --card: #282624; --line: #3b3935; } }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 system-ui, "Noto Sans TC", sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p { color: var(--muted); margin: 0 0 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+  canvas { width: 100%; image-rendering: pixelated; background: #cfe3c4; border-radius: 4px; }
+  figcaption { margin-top: 6px; font-weight: 600; }
+  figcaption small { font-weight: 400; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>像素小投手：關鍵姿勢參考</h1>
+  <p>取自 models/pitching-motion.json（CMU 動作捕捉 124_01，右投），側面視角，投球方向朝右。淺色為靠鏡頭的右半身，深色為遠側左半身。每格 64×64 像素，是給 PixelLab 依姿勢生成角色用的骨架參考。</p>
+  <div class="grid" id="grid"></div>
+</main>
+<script>
+const SIZE = 64;
+const POSES = [
+  ['start', '準備'], ['lift', '抬腿'], ['stride', '跨步'],
+  ['release', '出手'], ['follow', '收尾'], ['end', '結束']
+];
+const BONES = [
+  ['hip','spine'],['spine','chest'],['chest','neck'],['neck','head'],
+  ['neck','ls'],['ls','le'],['le','lh'],['neck','rs'],['rs','re'],['re','rh'],
+  ['hip','lhip'],['lhip','lk'],['lk','lf'],['lf','lt'],
+  ['hip','rhip'],['rhip','rk'],['rk','rf'],['rf','rt']
+];
+const far = name => /^l/.test(name) && name !== 'hip';
+
+fetch('../../models/pitching-motion.json').then(r => r.json()).then(data => {
+  // One shared scale and origin so every pose sits on the same ground line.
+  let minZ = Infinity, maxZ = -Infinity, maxY = 0;
+  for (const [key] of POSES) for (const p of Object.values(data.frames[data.keyFrames[key]])) {
+    minZ = Math.min(minZ, p[2]); maxZ = Math.max(maxZ, p[2]); maxY = Math.max(maxY, p[1]);
+  }
+  const scale = (SIZE - 8) / Math.max(maxZ - minZ, maxY);
+  const toPx = p => [4 + (p[2] - minZ) * scale + ((SIZE - 8) - (maxZ - minZ) * scale) / 2, SIZE - 4 - p[1] * scale];
+  const keypoints = {};
+
+  for (const [key, label] of POSES) {
+    const frameIndex = data.keyFrames[key];
+    const frame = data.frames[frameIndex];
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = SIZE;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = '#8fb57f';
+    ctx.fillRect(0, SIZE - 4, SIZE, 4);
+    const order = [...BONES].sort((a, b) => far(b[1]) - far(a[1]));
+    for (const [a, b] of order) {
+      const [x0, y0] = toPx(frame[a]), [x1, y1] = toPx(frame[b]);
+      ctx.strokeStyle = far(b) ? '#4a4f6a' : (/^r/.test(b) ? '#e9eefc' : '#c9d2ee');
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(Math.round(x0) + .5, Math.round(y0) + .5); ctx.lineTo(Math.round(x1) + .5, Math.round(y1) + .5); ctx.stroke();
+    }
+    const [hx, hy] = toPx(frame.head);
+    ctx.fillStyle = '#f2c9a0';
+    ctx.fillRect(Math.round(hx) - 3, Math.round(hy) - 4, 7, 7);
+    keypoints[key] = Object.fromEntries(Object.entries(frame).map(([n, p]) => [n, toPx(p).map(v => Math.round(v * 10) / 10)]));
+
+    const fig = document.createElement('figure');
+    fig.dataset.pose = key;
+    fig.append(canvas);
+    const cap = document.createElement('figcaption');
+    cap.innerHTML = `${label} <small>${key}・第 ${frameIndex} 格・${data.keyTimes[key].toFixed(2)} 秒</small>`;
+    fig.append(cap);
+    document.getElementById('grid').append(fig);
+  }
+  window.poseKeypoints = keypoints;
+  document.body.dataset.ready = '1';
+});
+</script>
+</body>
+</html>
