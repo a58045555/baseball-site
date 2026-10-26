@@ -191,17 +191,38 @@ function side2d(c,w,h,d){
  if(flight&&!playing){const e=flight.end;c.fillStyle=G2.text;c.textAlign='right';c.font=`700 ${fs}px -apple-system,"Noto Sans TC",sans-serif`;c.fillText(`到本壘高度 ${e.y.toFixed(2)} m`,w-R,top-h*.06);}
 }
 function zone2d(c,w,h,d){
- const cx=w/2,ground=h*.84,top=h*.24,zs=Math.min(w*.7/1.3,(ground-top)/1.55),X=x=>cx-x*zs,Y=y=>ground-y*zs;
- c.strokeStyle=G2.grid;c.lineWidth=1;for(let x=-.6;x<=.61;x+=.2){c.beginPath();c.moveTo(X(x),top);c.lineTo(X(x),ground);c.stroke();}for(let y=0;y<=1.5;y+=.2){c.beginPath();c.moveTo(X(-.7),Y(y));c.lineTo(X(.7),Y(y));c.stroke();}
- // home plate and the batter's view of the zone, split into nine boxes
- c.fillStyle='rgba(246,242,232,.85)';c.beginPath();c.moveTo(X(-.216),ground);c.lineTo(X(.216),ground);c.lineTo(X(.216),ground+zs*.05);c.lineTo(cx,ground+zs*.1);c.lineTo(X(-.216),ground+zs*.05);c.closePath();c.fill();
- c.fillStyle='rgba(225,240,190,.1)';c.fillRect(X(.215),Y(1.08),.43*zs,(1.08-.52)*zs);c.strokeStyle=G2.zone;c.lineWidth=Math.max(1.5,1.5*d);c.strokeRect(X(.215),Y(1.08),.43*zs,(1.08-.52)*zs);
- c.strokeStyle='rgba(225,240,190,.35)';c.lineWidth=1;for(let i=1;i<3;i++){c.beginPath();c.moveTo(X(.215-i*.43/3),Y(1.08));c.lineTo(X(.215-i*.43/3),Y(.52));c.stroke();c.beginPath();c.moveTo(X(.215),Y(1.08-i*.56/3));c.lineTo(X(-.215),Y(1.08-i*.56/3));c.stroke();}
- const fs=Math.max(10,11*d);c.font=`${fs}px -apple-system,"Noto Sans TC",sans-serif`;c.fillStyle=G2.text;c.textAlign='center';c.fillText('好球帶（從投手這邊看）',cx,Y(1.08)-fs*.8);
- const t=currentT2();c.fillStyle='rgba(154,90,52,.85)';c.beginPath();c.arc(X(t.x),Y(t.y),Math.max(6*d,.12*zs),0,7);c.fill();c.strokeStyle=G2.gold;c.lineWidth=Math.max(2,2*d);c.beginPath();c.arc(X(t.x),Y(t.y),t.radius*zs,0,7);c.stroke();
- if(prediction&&prediction.end.z>=16.49){c.strokeStyle=G2.blue;c.setLineDash([5*d,5*d]);c.lineWidth=Math.max(1.5,1.5*d);c.beginPath();c.arc(X(prediction.end.x),Y(prediction.end.y),Math.max(6*d,.037*zs*2),0,7);c.stroke();c.setLineDash([]);}
- if(flight){const frac=Math.min(1,(playing?elapsed:flight.end.t)/flight.end.t),n=Math.ceil(flight.points.length*frac),step=Math.max(1,Math.floor(flight.points.length/14));for(let i=0;i<n;i+=step){const q=flight.points[i],k=Math.min(1,Math.max(0,q.z/16.5));if(Y(q.y)<top)continue;c.fillStyle=`rgba(255,106,76,${.25+.5*k})`;c.beginPath();c.arc(X(q.x),Y(q.y),Math.max(1.5*d,(.15+.85*k)*.037*zs*1.2),0,7);c.fill();}
-  const b=ballNow(),k=Math.min(1,Math.max(0,b.z/16.5)),rad=Math.max(2*d,(.15+.85*k)*.037*zs*2);c.fillStyle='#fffaf0';c.beginPath();c.arc(X(b.x),Y(b.y),rad,0,7);c.fill();c.strokeStyle=G2.red;c.lineWidth=Math.max(1,d);c.beginPath();c.arc(X(b.x),Y(b.y),rad*.6,-.9,.9);c.stroke();}
- c.fillStyle='rgba(231,239,215,.6)';c.textAlign='left';c.fillText('金圈：目標　藍色虛線：預測落點　紅點：這一球',w*.05,ground+zs*.2);
+ // the plate as the pitcher sees it; +x is the pitcher's left, so it is drawn on the left
+ const fs=Math.max(10,11*d),font=(wt,s)=>`${wt} ${s}px -apple-system,"Noto Sans TC",sans-serif`,sky=h*.15,top=h*.2,bottom=h-fs*3.6,zs=Math.min(w*.62/.9,(bottom-top)/1.48),cx=w/2,ground=bottom-zs*.1,X=x=>cx-x*zs,Y=y=>ground-y*zs,zl=X(.215),zr=X(-.215),zt=Y(1.08),zb=Y(.52);
+ c.strokeStyle=G2.grid;c.lineWidth=1;for(let x=-.6;x<=.61;x+=.2){c.beginPath();c.moveTo(X(x),top);c.lineTo(X(x),ground);c.stroke();}for(let y=0;y<=1.41;y+=.2){c.beginPath();c.moveTo(X(.62),Y(y));c.lineTo(X(-.62),Y(y));c.stroke();}
+ // home plate and the zone, split into nine boxes
+ c.fillStyle='rgba(246,242,232,.85)';c.beginPath();c.moveTo(X(.216),ground);c.lineTo(X(-.216),ground);c.lineTo(X(-.216),ground+zs*.04);c.lineTo(cx,ground+zs*.08);c.lineTo(X(.216),ground+zs*.04);c.closePath();c.fill();
+ c.fillStyle='rgba(225,240,190,.1)';c.fillRect(zl,zt,zr-zl,zb-zt);c.strokeStyle='rgba(225,240,190,.3)';c.lineWidth=1;for(let i=1;i<3;i++){const gx=zl+(zr-zl)*i/3,gy=zt+(zb-zt)*i/3;c.beginPath();c.moveTo(gx,zt);c.lineTo(gx,zb);c.moveTo(zl,gy);c.lineTo(zr,gy);c.stroke();}
+ c.strokeStyle=G2.zone;c.lineWidth=Math.max(1.5,1.5*d);c.strokeRect(zl,zt,zr-zl,zb-zt);
+ // the caption sits under the zone, where the ball rarely flies
+ c.font=font(400,fs*.92);c.fillStyle='rgba(231,239,215,.6)';c.textAlign='center';c.fillText('好球帶・從投手這邊看',cx,Y(.27));
+ // the catcher's mitt and the gold ring the ball has to land in
+ const t=currentT2();c.fillStyle='rgba(154,90,52,.6)';c.beginPath();c.arc(X(t.x),Y(t.y),Math.max(6*d,.1*zs),0,7);c.fill();c.strokeStyle=G2.gold;c.lineWidth=Math.max(2,2*d);c.beginPath();c.arc(X(t.x),Y(t.y),t.radius*zs,0,7);c.stroke();
+ const ballR=k=>Math.max(2*d,(.3+.7*k)*.037*zs*(big?2:1.2));
+ if(prediction&&prediction.end.z>=16.49&&!playing){c.strokeStyle=G2.blue;c.setLineDash([4*d,4*d]);c.lineWidth=Math.max(1.5,1.5*d);c.beginPath();c.arc(X(prediction.end.x),Y(prediction.end.y),ballR(1)+3*d,0,7);c.stroke();c.setLineDash([]);}
+ // the flight: a faint line through the path plus a strobe of balls every 1/30 s that grow as they
+ // come closer, so the eye reads depth; the no-spin ball is the same in grey
+ const now=flight?(playing?elapsed:flight.end.t):0;
+ const strobe=(f,col,solid)=>{const pts=f.points.filter(q=>q.t<=now);if(pts.length<2)return;c.save();c.beginPath();c.rect(0,sky,w,h);c.clip();c.strokeStyle=col(.35);c.lineWidth=Math.max(1,d);c.beginPath();pts.forEach((q,i)=>i?c.lineTo(X(q.x),Y(q.y)):c.moveTo(X(q.x),Y(q.y)));c.stroke();let next=0;for(const q of pts){if(q.t<next)continue;next=q.t+1/30;const k=Math.min(1,Math.max(0,q.z/16.5));c.beginPath();c.arc(X(q.x),Y(q.y),ballR(k)*.7,0,7);if(solid){c.fillStyle=col(.2+.45*k);c.fill();}else{c.strokeStyle=col(.25+.45*k);c.lineWidth=Math.max(1,d);c.stroke();}}c.restore();};
+ const ghostOn=flight&&compare&&ghostFlight;
+ if(ghostOn)strobe(ghostFlight,a=>`rgba(210,220,210,${a})`,false);
+ if(flight)strobe(flight,a=>`rgba(255,106,76,${a})`,true);
+ const drawBall=(p,fill,stroke)=>{const k=Math.min(1,Math.max(0,p.z/16.5)),rad=ballR(k),py=Math.max(sky+rad,Y(p.y));c.fillStyle=fill;c.beginPath();c.arc(X(p.x),py,rad,0,7);c.fill();c.strokeStyle=stroke;c.lineWidth=Math.max(1,d);c.beginPath();c.arc(X(p.x),py,rad*.6,-.9,.9);c.stroke();};
+ if(ghostOn){const q=F.sample(ghostFlight,Math.min(now,ghostFlight.end.t));drawBall(q,'rgba(220,226,220,.55)','rgba(120,130,120,.8)');}
+ if(flight)drawBall(ballNow(),'#fffaf0',G2.red);
+ // after the pitch: how far from the mitt, and how much the spin moved the ball against the grey one
+ if(flight&&!playing&&flight.end.z>=16.49){const e=flight.end,ex=X(e.x),ey=Y(e.y),miss=Math.round(Math.hypot(e.x-t.x,e.y-t.y)*100),strike=Math.abs(e.x)<=.252&&e.y>=.483&&e.y<=1.117;
+  c.strokeStyle='rgba(241,201,112,.8)';c.setLineDash([3*d,3*d]);c.lineWidth=Math.max(1,d);c.beginPath();c.moveTo(ex,ey);c.lineTo(X(t.x),Y(t.y));c.stroke();c.setLineDash([]);
+  if(ghostOn&&ghostFlight.end.z>=16.49){const g=ghostFlight.end,gx=X(g.x),gy=Y(g.y),dy=Math.round((e.y-g.y)*100),dx=Math.round((e.x-g.x)*100);if(Math.hypot(dx,dy)>=2){c.save();c.beginPath();c.rect(0,sky,w,h);c.clip();const ang=Math.atan2(ey-gy,ex-gx),hd=5*d;c.strokeStyle=c.fillStyle='rgba(231,239,215,.85)';c.lineWidth=Math.max(1.5,1.5*d);c.beginPath();c.moveTo(gx,gy);c.lineTo(ex-Math.cos(ang)*ballR(1),ey-Math.sin(ang)*ballR(1));c.stroke();const tx=ex-Math.cos(ang)*ballR(1),ty=ey-Math.sin(ang)*ballR(1);c.beginPath();c.moveTo(tx,ty);c.lineTo(tx-Math.cos(ang-.5)*hd,ty-Math.sin(ang-.5)*hd);c.lineTo(tx-Math.cos(ang+.5)*hd,ty-Math.sin(ang+.5)*hd);c.closePath();c.fill();c.restore();}}
+  const lines=[`${strike?'好球':'壞球'}・離手套 ${miss} 公分`];
+  if(ghostOn&&ghostFlight.end.z>=16.49){const g=ghostFlight.end,dy=Math.round((e.y-g.y)*100),dx=Math.round((e.x-g.x)*100),parts=[];if(Math.abs(dy)>=2)parts.push(dy<0?`多掉 ${-dy}`:`少掉 ${dy}`);if(Math.abs(dx)>=2)parts.push(`${dx>0?'往左':'往右'} ${Math.abs(dx)}`);if(parts.length)lines.push(`比灰球${parts.join('、')} 公分`);}
+  c.font=font(700,fs);c.fillStyle=G2.text;c.textAlign='left';lines.forEach((s,i)=>c.fillText(s,w*.05,top+fs*(i*1.4)));}
+ // legend in the colours it describes
+ c.font=font(400,fs*.92);c.textAlign='left';let lx=w*.05;const ly=h-fs*1.1;
+ for(const [col,lab] of [[G2.gold,'● 手套目標'],[G2.blue,'◌ 預測'],[G2.red,'● 這一球']].concat(compare?[['rgba(210,220,210,.85)','○ 不旋轉']]:[])){c.fillStyle=col;c.fillText(lab,lx,ly);lx+=c.measureText(lab).width+fs*1.1;}
 }
 try{setup();}catch(error){console.error('3D 初始化失敗',error);$('#play-fallback').hidden=false;panel.innerHTML='<h2>故事實驗室照常開放。</h2><p>這台裝置未提供可用的 3D 圖形功能。往下滑，仍可玩五個原本的小實驗。</p><a href="#chapter-nav">去玩故事實驗 ↓</a>';lab.querySelectorAll('[data-play-mode]').forEach(b=>b.disabled=true);}
